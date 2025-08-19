@@ -71,8 +71,9 @@ app.get("/", (req, res) => {
         .window.minimized .window-body { display: none; }
         .window.minimized { margin-bottom: 10px; }
         .window.dragging { opacity: 0.5; z-index: 1000; }
-        .window { cursor: grab; transition: transform 0.2s ease; }
-        .window:active { cursor: grabbing; }
+        .window { transition: transform 0.2s ease; }
+        .title-bar { cursor: grab; }
+        .title-bar:active { cursor: grabbing; }
         .container.drag-over { background-color: rgba(255, 255, 255, 0.1); }
         .drop-indicator {
           position: absolute;
@@ -286,23 +287,37 @@ app.get("/", (req, res) => {
           document.body.appendChild(dropIndicator);
 
           document.querySelectorAll('.window').forEach(windowElement => {
-            windowElement.draggable = true;
+            // Make only the title bar draggable
+            const titleBar = windowElement.querySelector('.title-bar');
+            if (titleBar) {
+              titleBar.draggable = true;
+              titleBar.style.cursor = 'grab';
 
-            windowElement.addEventListener('dragstart', function(e) {
-              draggedElement = this;
-              this.classList.add('dragging');
-              container.classList.add('drag-over');
-              e.dataTransfer.effectAllowed = 'move';
-              e.dataTransfer.setData('text/html', this.outerHTML);
-            });
+              titleBar.addEventListener('dragstart', function(e) {
+                draggedElement = windowElement;
+                windowElement.classList.add('dragging');
+                container.classList.add('drag-over');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/html', windowElement.outerHTML);
+              });
 
-            windowElement.addEventListener('dragend', function(e) {
-              this.classList.remove('dragging');
-              container.classList.remove('drag-over');
-              dropIndicator.style.display = 'none';
-              draggedElement = null;
-            });
+              titleBar.addEventListener('dragend', function(e) {
+                windowElement.classList.remove('dragging');
+                container.classList.remove('drag-over');
+                dropIndicator.style.display = 'none';
+                draggedElement = null;
+              });
 
+              titleBar.addEventListener('dragenter', function(e) {
+                titleBar.style.cursor = 'grabbing';
+              });
+
+              titleBar.addEventListener('dragleave', function(e) {
+                titleBar.style.cursor = 'grab';
+              });
+            }
+
+            // Handle drop zones for other windows
             windowElement.addEventListener('dragover', function(e) {
               if (draggedElement && draggedElement !== this) {
                 e.preventDefault();
