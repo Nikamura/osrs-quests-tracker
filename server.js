@@ -530,7 +530,15 @@ function generateChartData(playerData) {
       backgroundColor: color + '33',
       fill: false,
     });
-    data.forEach(d => labels.add(d.timestamp.toLocaleDateString('en-CA', { timeZone: 'Europe/Vilnius' })));
+    data.forEach(d => labels.add(d.timestamp.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'Europe/Vilnius'
+    })));
   }
 
   return {
@@ -696,6 +704,13 @@ function generateAchievementsTable(achievementsData) {
   // Generate summary statistics
   const playerStats = {};
   const typeStats = {};
+  const playerColors = {
+    'anime irl': '#FF6384',
+    'swamp party': '#36A2EB',
+    'clintonhill': '#FFCE56',
+    'serasvasalas': '#4BC0C0',
+    'juozulis': '#9966FF'
+  };
 
   for (const achievement of achievementsData) {
     // Player stats
@@ -746,10 +761,11 @@ function generateAchievementsTable(achievementsData) {
   tableHtml += '<tbody>';
   for (const achievement of achievementsData) {
     const timeDiff = achievement.timestamp.getTime() - achievement.previousTimestamp.getTime();
+    const playerColor = playerColors[achievement.player] || '#999999';
 
-    let rowClass = `achievement-${achievement.type}`;
+    let rowStyle = `background-color: ${playerColor}33;`; // 33 for transparency
     if (timeDiff < 1000 * 60 * 60 * 24) { // Less than 24 hours
-      rowClass += ' achievement-new';
+      rowStyle += ' font-weight: bold;';
     }
 
     // Format date with hours and minutes in Lithuanian timezone
@@ -763,8 +779,8 @@ function generateAchievementsTable(achievementsData) {
       timeZone: 'Europe/Vilnius'
     });
 
-    tableHtml += `<tr class="${rowClass}">`;
-    tableHtml += `<td><strong>${achievement.displayName}</strong></td>`;
+    tableHtml += `<tr style="${rowStyle}">`;
+    tableHtml += `<td><strong style="color: ${playerColor};">${achievement.displayName}</strong></td>`;
     tableHtml += `<td>${achievement.name}</td>`;
     tableHtml += `<td>${achievement.type.charAt(0).toUpperCase() + achievement.type.slice(1)}</td>`;
     tableHtml += `<td>${dateWithTime}</td>`;
