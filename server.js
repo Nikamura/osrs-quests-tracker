@@ -530,7 +530,7 @@ function generateChartData(playerData) {
       backgroundColor: color + '33',
       fill: false,
     });
-    data.forEach(d => labels.add(d.timestamp.toISOString().split('T')[0]));
+    data.forEach(d => labels.add(d.timestamp.toLocaleDateString('en-CA', { timeZone: 'Europe/Vilnius' })));
   }
 
   return {
@@ -752,14 +752,15 @@ function generateAchievementsTable(achievementsData) {
       rowClass += ' achievement-new';
     }
 
-    // Format date with hours and minutes
+    // Format date with hours and minutes in Lithuanian timezone
     const dateWithTime = achievement.timestamp.toLocaleString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-      hour12: false
+      hour12: false,
+      timeZone: 'Europe/Vilnius'
     });
 
     tableHtml += `<tr class="${rowClass}">`;
