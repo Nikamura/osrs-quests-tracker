@@ -546,127 +546,136 @@ function getAchievementsData() {
   for (const player of players) {
     const playerDir = path.join("player_data", player);
     const files = readdirSync(playerDir).filter(f => f.endsWith('.json')).sort();
-    if (files.length < 2) continue; // Need at least 2 files to compare
+    if (files.length === 0) continue;
 
-    // Get the two most recent files
-    const latestFile = files[files.length - 1];
-    const previousFile = files[files.length - 2];
+    // Process all files to build complete achievement history
+    for (let i = 1; i < files.length; i++) {
+      const currentFile = files[i];
+      const previousFile = files[i - 1];
 
-    const latestData = JSON.parse(readFileSync(path.join(playerDir, latestFile), "utf-8"));
-    const previousData = JSON.parse(readFileSync(path.join(playerDir, previousFile), "utf-8"));
+      try {
+        const currentData = JSON.parse(readFileSync(path.join(playerDir, currentFile), "utf-8"));
+        const previousData = JSON.parse(readFileSync(path.join(playerDir, previousFile), "utf-8"));
 
-    const latestTimestamp = new Date(latestFile.split('_')[1].replace('.json', ''));
-    const previousTimestamp = new Date(previousFile.split('_')[1].replace('.json', ''));
+        const currentTimestamp = new Date(currentFile.split('_')[1].replace('.json', ''));
+        const previousTimestamp = new Date(previousFile.split('_')[1].replace('.json', ''));
 
-    // Check for quest completions
-    if (latestData.quests && previousData.quests) {
-      for (const [questName, currentStatus] of Object.entries(latestData.quests)) {
-        const previousStatus = previousData.quests[questName] || 0;
-        if (previousStatus !== 2 && currentStatus === 2) {
-          allAchievements.push({
-            player: player,
-            type: 'quest',
-            name: questName,
-            timestamp: latestTimestamp,
-            previousTimestamp: previousTimestamp,
-            displayName: getDisplayName(player)
-          });
+        // Check for quest completions
+        if (currentData.quests && previousData.quests) {
+          for (const [questName, currentStatus] of Object.entries(currentData.quests)) {
+            const previousStatus = previousData.quests[questName] || 0;
+            if (previousStatus !== 2 && currentStatus === 2) {
+              allAchievements.push({
+                player: player,
+                type: 'quest',
+                name: questName,
+                timestamp: currentTimestamp,
+                previousTimestamp: previousTimestamp,
+                displayName: getDisplayName(player)
+              });
+            }
+          }
         }
-      }
-    }
 
-    // Check for achievement diary completions
-    if (latestData.achievement_diaries && previousData.achievement_diaries) {
-      for (const [diaryName, currentDiary] of Object.entries(latestData.achievement_diaries)) {
-        const previousDiary = previousData.achievement_diaries[diaryName];
-        if (previousDiary) {
-          for (const [difficulty, currentDifficulty] of Object.entries(currentDiary)) {
-            if (difficulty !== 'tasks') {
-              const previousDifficulty = previousDiary[difficulty];
-              if (previousDifficulty && !previousDifficulty.complete && currentDifficulty.complete) {
-                allAchievements.push({
-                  player: player,
-                  type: 'diary',
-                  name: `${diaryName} ${difficulty}`,
-                  timestamp: latestTimestamp,
-                  previousTimestamp: previousTimestamp,
-                  displayName: getDisplayName(player)
-                });
+        // Check for achievement diary completions
+        if (currentData.achievement_diaries && previousData.achievement_diaries) {
+          for (const [diaryName, currentDiary] of Object.entries(currentData.achievement_diaries)) {
+            const previousDiary = previousData.achievement_diaries[diaryName];
+            if (previousDiary) {
+              for (const [difficulty, currentDifficulty] of Object.entries(currentDiary)) {
+                if (difficulty !== 'tasks') {
+                  const previousDifficulty = previousDiary[difficulty];
+                  if (previousDifficulty && !previousDifficulty.complete && currentDifficulty.complete) {
+                    allAchievements.push({
+                      player: player,
+                      type: 'diary',
+                      name: `${diaryName} ${difficulty}`,
+                      timestamp: currentTimestamp,
+                      previousTimestamp: previousTimestamp,
+                      displayName: getDisplayName(player)
+                    });
+                  }
+                }
               }
             }
           }
         }
-      }
-    }
 
-    // Check for music track unlocks
-    if (latestData.music_tracks && previousData.music_tracks) {
-      for (const [trackName, currentUnlocked] of Object.entries(latestData.music_tracks)) {
-        const previousUnlocked = previousData.music_tracks[trackName] || false;
-        if (!previousUnlocked && currentUnlocked) {
-          allAchievements.push({
-            player: player,
-            type: 'music',
-            name: trackName,
-            timestamp: latestTimestamp,
-            previousTimestamp: previousTimestamp,
-            displayName: getDisplayName(player)
-          });
+        // Check for music track unlocks
+        if (currentData.music_tracks && previousData.music_tracks) {
+          for (const [trackName, currentUnlocked] of Object.entries(currentData.music_tracks)) {
+            const previousUnlocked = previousData.music_tracks[trackName] || false;
+            if (!previousUnlocked && currentUnlocked) {
+              allAchievements.push({
+                player: player,
+                type: 'music',
+                name: trackName,
+                timestamp: currentTimestamp,
+                previousTimestamp: previousTimestamp,
+                displayName: getDisplayName(player)
+              });
+            }
+          }
         }
-      }
-    }
 
-    // Check for combat achievement progress
-    if (latestData.combat_achievements && previousData.combat_achievements) {
-      const currentCount = latestData.combat_achievements.length;
-      const previousCount = previousData.combat_achievements.length;
-      if (currentCount > previousCount) {
-        allAchievements.push({
-          player: player,
-          type: 'combat',
-          name: `Combat Achievement (${previousCount} → ${currentCount})`,
-          timestamp: latestTimestamp,
-          previousTimestamp: previousTimestamp,
-          displayName: getDisplayName(player)
-        });
-      }
-    }
+        // Check for combat achievement progress
+        if (currentData.combat_achievements && previousData.combat_achievements) {
+          const currentCount = currentData.combat_achievements.length;
+          const previousCount = previousData.combat_achievements.length;
+          if (currentCount > previousCount) {
+            allAchievements.push({
+              player: player,
+              type: 'combat',
+              name: `Combat Achievement (${previousCount} → ${currentCount})`,
+              timestamp: currentTimestamp,
+              previousTimestamp: previousTimestamp,
+              displayName: getDisplayName(player)
+            });
+          }
+        }
 
-    // Check for collection log progress
-    if (latestData.collectionLogItemCount !== null && previousData.collectionLogItemCount !== null) {
-      const currentCount = latestData.collectionLogItemCount;
-      const previousCount = previousData.collectionLogItemCount;
-      if (currentCount > previousCount) {
-        allAchievements.push({
-          player: player,
-          type: 'collection',
-          name: `Collection Log (${previousCount} → ${currentCount} items)`,
-          timestamp: latestTimestamp,
-          previousTimestamp: previousTimestamp,
-          displayName: getDisplayName(player)
-        });
-      }
-    }
+        // Check for collection log progress
+        if (currentData.collectionLogItemCount !== null && previousData.collectionLogItemCount !== null) {
+          const currentCount = currentData.collectionLogItemCount;
+          const previousCount = previousData.collectionLogItemCount;
+          if (currentCount > previousCount) {
+            allAchievements.push({
+              player: player,
+              type: 'collection',
+              name: `Collection Log (${previousCount} → ${currentCount} items)`,
+              timestamp: currentTimestamp,
+              previousTimestamp: previousTimestamp,
+              displayName: getDisplayName(player)
+            });
+          }
+        }
 
-    // Check for league task completions
-    if (latestData.league_tasks && previousData.league_tasks) {
-      const currentCount = latestData.league_tasks.length;
-      const previousCount = previousData.league_tasks.length;
-      if (currentCount > previousCount) {
-        allAchievements.push({
-          player: player,
-          type: 'league',
-          name: `League Task (${previousCount} → ${currentCount} completed)`,
-          timestamp: latestTimestamp,
-          previousTimestamp: previousTimestamp,
-          displayName: getDisplayName(player)
-        });
+        // Check for league task completions
+        if (currentData.league_tasks && previousData.league_tasks) {
+          const currentCount = currentData.league_tasks.length;
+          const previousCount = previousData.league_tasks.length;
+          if (currentCount > previousCount) {
+            allAchievements.push({
+              player: player,
+              type: 'league',
+              name: `League Task (${previousCount} → ${currentCount} completed)`,
+              timestamp: currentTimestamp,
+              previousTimestamp: previousTimestamp,
+              displayName: getDisplayName(player)
+            });
+          }
+        }
+
+      } catch (error) {
+        console.error(`Error processing files for ${player}:`, error);
+        continue;
       }
     }
   }
 
   // Sort achievements by timestamp (most recent first)
   allAchievements.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
 
   // Filter to show only achievements from the last 30 days by default
   const thirtyDaysAgo = new Date();
