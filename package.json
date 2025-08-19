@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "fetch-data": "node data_fetcher.js",
+    "generate": "node generate_static.js",
     "start": "node server.js",
     "cleanup": "node cleanup_player_data.js"
   },
