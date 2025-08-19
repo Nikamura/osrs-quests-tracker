@@ -100,6 +100,17 @@ app.listen(port, (err) => {
   console.log(`Server running at http://localhost:${port}`);
 });
 
+function getDisplayName(playerDir) {
+  const nameMap = {
+    'anime irl': 'Martynas',
+    'swamp party': 'Petras',
+    'clintonhill': 'Karolis',
+    'seras vasalas': 'Mangirdas',
+    'juozulis': 'Minvydas'
+  };
+  return nameMap[playerDir] || playerDir;
+}
+
 function getQuestComparisonData() {
   const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
   const latestPlayerData = {};
@@ -137,7 +148,7 @@ function generateQuestComparisonTable(comparisonData) {
   // Header
   tableHtml += '<thead><tr><th>Quest</th>';
   for (const player of players) {
-    tableHtml += `<th>${player}</th>`;
+    tableHtml += `<th>${getDisplayName(player)}</th>`;
   }
   tableHtml += '</tr></thead>';
 
@@ -209,7 +220,7 @@ function generateChartData(playerData) {
     const color = colors[colorIndex % colors.length];
     colorIndex++;
     datasets.push({
-      label: player,
+      label: getDisplayName(player),
       data: data.map(d => ({ x: d.timestamp, y: d.completedQuests })),
       borderColor: color,
       backgroundColor: color + '33',
