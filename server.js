@@ -523,22 +523,28 @@ function generateChartData(playerData) {
     const data = playerData[player];
     const color = colors[colorIndex % colors.length];
     colorIndex++;
+
+    const formattedData = data.map(d => {
+      const formattedTimestamp = d.timestamp.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'Europe/Vilnius'
+      });
+      labels.add(formattedTimestamp);
+      return { x: formattedTimestamp, y: d.completedQuests };
+    });
+
     datasets.push({
       label: getDisplayName(player),
-      data: data.map(d => ({ x: d.timestamp, y: d.completedQuests })),
+      data: formattedData,
       borderColor: color,
       backgroundColor: color + '33',
       fill: false,
     });
-    data.forEach(d => labels.add(d.timestamp.toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      timeZone: 'Europe/Vilnius'
-    })));
   }
 
   return {
