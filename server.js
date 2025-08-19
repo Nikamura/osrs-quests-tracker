@@ -14,12 +14,24 @@ app.get("/", (req, res) => {
     <html>
     <head>
       <title>OSRS Quest Tracker</title>
+      <link rel="stylesheet" href="https://unpkg.com/98.css">
       <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     </head>
-    <body>
-      <h1>OSRS Quest Progress</h1>
-      <div style="max-width: 800px; max-height: 600px;">
-        <canvas id="questChart"></canvas>
+    <body style="background-color: #008080;">
+      <div class="window" style="margin: 32px; width: 850px;">
+        <div class="title-bar">
+          <div class="title-bar-text">OSRS Quest Progress</div>
+          <div class="title-bar-controls">
+            <button aria-label="Minimize"></button>
+            <button aria-label="Maximize"></button>
+            <button aria-label="Close"></button>
+          </div>
+        </div>
+        <div class="window-body">
+          <div style="max-width: 800px; max-height: 600px;">
+            <canvas id="questChart"></canvas>
+          </div>
+        </div>
       </div>
       <script>
         const ctx = document.getElementById('questChart').getContext('2d');
