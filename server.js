@@ -20,6 +20,9 @@ app.get("/", (req, res) => {
   const musicTracksComparisonData = getMusicTracksComparisonData();
   const musicTracksTableHtml = generateMusicTracksComparisonTable(musicTracksComparisonData);
 
+  const achievementsData = getAchievementsData();
+  const achievementsTableHtml = generateAchievementsTable(achievementsData);
+
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -57,6 +60,14 @@ app.get("/", (req, res) => {
         .diary-not-started { background-color: #cccccc; }
         .music-track-unlocked { background-color: #3a8e3a; color: white; font-weight: bold; }
         .music-track-locked { background-color: #cccccc; }
+        .achievement-new { background-color: #ffcc00; font-weight: bold; }
+        .achievement-quest { background-color: #4bc0c0; }
+        .achievement-level { background-color: #ff9f40; }
+        .achievement-diary { background-color: #9966ff; }
+        .achievement-music { background-color: #36a2eb; }
+        .achievement-combat { background-color: #ff6384; }
+        .achievement-collection { background-color: #9966ff; }
+        .achievement-league { background-color: #ff9f40; }
       </style>
     </head>
     <body style="background-color: #008080;">
@@ -106,6 +117,14 @@ app.get("/", (req, res) => {
           </div>
           <div class="window-body">
             ${musicTracksTableHtml}
+          </div>
+        </div>
+        <div class="window main-window">
+          <div class="title-bar">
+            <div class="title-bar-text">Recent Achievements & Progress</div>
+          </div>
+          <div class="window-body">
+            ${achievementsTableHtml}
           </div>
         </div>
       </div>
@@ -518,4 +537,223 @@ function generateChartData(playerData) {
     labels: [...labels].sort(),
     datasets
   };
+}
+
+function getAchievementsData() {
+  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
+  const allAchievements = [];
+
+  for (const player of players) {
+    const playerDir = path.join("player_data", player);
+    const files = readdirSync(playerDir).filter(f => f.endsWith('.json')).sort();
+    if (files.length < 2) continue; // Need at least 2 files to compare
+
+    // Get the two most recent files
+    const latestFile = files[files.length - 1];
+    const previousFile = files[files.length - 2];
+
+    const latestData = JSON.parse(readFileSync(path.join(playerDir, latestFile), "utf-8"));
+    const previousData = JSON.parse(readFileSync(path.join(playerDir, previousFile), "utf-8"));
+
+    const latestTimestamp = new Date(latestFile.split('_')[1].replace('.json', ''));
+    const previousTimestamp = new Date(previousFile.split('_')[1].replace('.json', ''));
+
+    // Check for quest completions
+    if (latestData.quests && previousData.quests) {
+      for (const [questName, currentStatus] of Object.entries(latestData.quests)) {
+        const previousStatus = previousData.quests[questName] || 0;
+        if (previousStatus !== 2 && currentStatus === 2) {
+          allAchievements.push({
+            player: player,
+            type: 'quest',
+            name: questName,
+            timestamp: latestTimestamp,
+            previousTimestamp: previousTimestamp,
+            displayName: getDisplayName(player)
+          });
+        }
+      }
+    }
+
+    // Check for achievement diary completions
+    if (latestData.achievement_diaries && previousData.achievement_diaries) {
+      for (const [diaryName, currentDiary] of Object.entries(latestData.achievement_diaries)) {
+        const previousDiary = previousData.achievement_diaries[diaryName];
+        if (previousDiary) {
+          for (const [difficulty, currentDifficulty] of Object.entries(currentDiary)) {
+            if (difficulty !== 'tasks') {
+              const previousDifficulty = previousDiary[difficulty];
+              if (previousDifficulty && !previousDifficulty.complete && currentDifficulty.complete) {
+                allAchievements.push({
+                  player: player,
+                  type: 'diary',
+                  name: `${diaryName} ${difficulty}`,
+                  timestamp: latestTimestamp,
+                  previousTimestamp: previousTimestamp,
+                  displayName: getDisplayName(player)
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Check for music track unlocks
+    if (latestData.music_tracks && previousData.music_tracks) {
+      for (const [trackName, currentUnlocked] of Object.entries(latestData.music_tracks)) {
+        const previousUnlocked = previousData.music_tracks[trackName] || false;
+        if (!previousUnlocked && currentUnlocked) {
+          allAchievements.push({
+            player: player,
+            type: 'music',
+            name: trackName,
+            timestamp: latestTimestamp,
+            previousTimestamp: previousTimestamp,
+            displayName: getDisplayName(player)
+          });
+        }
+      }
+    }
+
+    // Check for combat achievement progress
+    if (latestData.combat_achievements && previousData.combat_achievements) {
+      const currentCount = latestData.combat_achievements.length;
+      const previousCount = previousData.combat_achievements.length;
+      if (currentCount > previousCount) {
+        allAchievements.push({
+          player: player,
+          type: 'combat',
+          name: `Combat Achievement (${previousCount} → ${currentCount})`,
+          timestamp: latestTimestamp,
+          previousTimestamp: previousTimestamp,
+          displayName: getDisplayName(player)
+        });
+      }
+    }
+
+    // Check for collection log progress
+    if (latestData.collectionLogItemCount !== null && previousData.collectionLogItemCount !== null) {
+      const currentCount = latestData.collectionLogItemCount;
+      const previousCount = previousData.collectionLogItemCount;
+      if (currentCount > previousCount) {
+        allAchievements.push({
+          player: player,
+          type: 'collection',
+          name: `Collection Log (${previousCount} → ${currentCount} items)`,
+          timestamp: latestTimestamp,
+          previousTimestamp: previousTimestamp,
+          displayName: getDisplayName(player)
+        });
+      }
+    }
+
+    // Check for league task completions
+    if (latestData.league_tasks && previousData.league_tasks) {
+      const currentCount = latestData.league_tasks.length;
+      const previousCount = previousData.league_tasks.length;
+      if (currentCount > previousCount) {
+        allAchievements.push({
+          player: player,
+          type: 'league',
+          name: `League Task (${previousCount} → ${currentCount} completed)`,
+          timestamp: latestTimestamp,
+          previousTimestamp: previousTimestamp,
+          displayName: getDisplayName(player)
+        });
+      }
+    }
+  }
+
+  // Sort achievements by timestamp (most recent first)
+  allAchievements.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+  // Filter to show only achievements from the last 30 days by default
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const recentAchievements = allAchievements.filter(achievement =>
+    achievement.timestamp > thirtyDaysAgo
+  );
+
+  return recentAchievements;
+}
+
+function generateAchievementsTable(achievementsData) {
+  if (achievementsData.length === 0) {
+    return "<p>No recent achievements found. Check back after more player data is collected!</p>";
+  }
+
+  // Generate summary statistics
+  const playerStats = {};
+  const typeStats = {};
+
+  for (const achievement of achievementsData) {
+    // Player stats
+    if (!playerStats[achievement.player]) {
+      playerStats[achievement.player] = { count: 0, displayName: achievement.displayName };
+    }
+    playerStats[achievement.player].count++;
+
+    // Type stats
+    if (!typeStats[achievement.type]) {
+      typeStats[achievement.type] = 0;
+    }
+    typeStats[achievement.type]++;
+  }
+
+  let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
+
+  // Summary section
+  tableHtml += '<div style="margin-bottom: 20px;">';
+  tableHtml += '<h3>Achievement Summary (Last 30 Days)</h3>';
+
+  // Player summary
+  tableHtml += '<div style="display: flex; gap: 20px; margin-bottom: 15px;">';
+  tableHtml += '<div><strong>By Player:</strong><br>';
+  for (const [player, stats] of Object.entries(playerStats)) {
+    tableHtml += `${stats.displayName}: ${stats.count}<br>`;
+  }
+  tableHtml += '</div>';
+
+  // Type summary
+  tableHtml += '<div><strong>By Type:</strong><br>';
+  for (const [type, count] of Object.entries(typeStats)) {
+    const typeName = type.charAt(0).toUpperCase() + type.slice(1);
+    tableHtml += `${typeName}: ${count}<br>`;
+  }
+  tableHtml += '</div>';
+  tableHtml += '</div>';
+
+  tableHtml += '</div>';
+
+  // Achievements table
+  tableHtml += '<table class="interactive" style="width: 100%;">';
+
+  // Header
+  tableHtml += '<thead><tr><th>Player</th><th>Achievement</th><th>Type</th><th>Date</th><th>Time Since Previous</th></tr></thead>';
+
+  // Body
+  tableHtml += '<tbody>';
+  for (const achievement of achievementsData) {
+    const timeDiff = achievement.timestamp.getTime() - achievement.previousTimestamp.getTime();
+    const timeDiffHours = Math.round(timeDiff / (1000 * 60 * 60));
+    const timeDiffText = timeDiffHours < 24 ? `${timeDiffHours}h` : `${Math.round(timeDiffHours / 24)}d`;
+
+    let rowClass = `achievement-${achievement.type}`;
+    if (timeDiff < 1000 * 60 * 60 * 24) { // Less than 24 hours
+      rowClass += ' achievement-new';
+    }
+
+    tableHtml += `<tr class="${rowClass}">`;
+    tableHtml += `<td><strong>${achievement.displayName}</strong></td>`;
+    tableHtml += `<td>${achievement.name}</td>`;
+    tableHtml += `<td>${achievement.type.charAt(0).toUpperCase() + achievement.type.slice(1)}</td>`;
+    tableHtml += `<td>${achievement.timestamp.toLocaleDateString()}</td>`;
+    tableHtml += `<td>${timeDiffText}</td>`;
+    tableHtml += '</tr>';
+  }
+  tableHtml += '</tbody></table></div>';
+
+  return tableHtml;
 }
