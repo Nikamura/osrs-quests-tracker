@@ -105,7 +105,7 @@ function getDisplayName(playerDir) {
     'anime irl': 'Martynas',
     'swamp party': 'Petras',
     'clintonhill': 'Karolis',
-    'seras vasalas': 'Mangirdas',
+    'serasvasalas': 'Mangirdas',
     'juozulis': 'Minvydas'
   };
   return nameMap[playerDir] || playerDir;
