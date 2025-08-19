@@ -635,6 +635,36 @@ function generateAchievementsTable(achievementsData) {
   return tableHtml;
 }
 
+function generatePlayerSelectionUI() {
+  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
+  if (players.length === 0) {
+    return "<p>No players found.</p>";
+  }
+
+  let selectionHtml = '<div class="player-selection" style="margin-bottom: 15px;">';
+  selectionHtml += '<h3>Player Selection</h3>';
+  selectionHtml += '<div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 10px;">';
+
+  for (const player of players.sort()) {
+    const displayName = getDisplayName(player);
+    selectionHtml += `
+      <label style="display: flex; align-items: center; gap: 5px;" class="player-label">
+        <input type="checkbox" id="player-${player}" value="${player}" checked onchange="updatePlayerSelection()">
+        <span class="player-name">${displayName}</span>
+      </label>
+    `;
+  }
+
+  selectionHtml += '</div>';
+  selectionHtml += '<div style="margin-top: 10px;">';
+  selectionHtml += '<button onclick="selectAllPlayers()">Select All</button>';
+  selectionHtml += '<button onclick="deselectAllPlayers()" style="margin-left: 10px;">Deselect All</button>';
+  selectionHtml += '</div>';
+  selectionHtml += '</div>';
+
+  return selectionHtml;
+}
+
 function generateStaticHTML() {
   if (!existsSync('public')) {
     mkdirSync('public');
@@ -659,6 +689,8 @@ function generateStaticHTML() {
 
     const achievementsData = getAchievementsData();
     const achievementsTableHtml = generateAchievementsTable(achievementsData);
+
+    const playerSelectionHtml = generatePlayerSelectionUI();
 
     const generatedAt = new Date().toLocaleString('en-US', {
       year: 'numeric',
@@ -742,11 +774,30 @@ function generateStaticHTML() {
       font-size: 12px;
       z-index: 1000;
     }
+    .player-label.unselected .player-name {
+      text-decoration: line-through;
+      color: #888;
+      opacity: 0.6;
+    }
+    .player-label {
+      transition: all 0.2s ease;
+    }
   </style>
 </head>
 <body style="background-color: #008080;">
   <div class="generated-at">Generated: ${generatedAt}</div>
   <div class="container">
+    <div class="window main-window">
+      <div class="title-bar">
+        <div class="title-bar-text">Player Selection</div>
+        <div class="title-bar-controls">
+          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+        </div>
+      </div>
+      <div class="window-body">
+        ${playerSelectionHtml}
+      </div>
+    </div>
     <div class="window main-window">
       <div class="title-bar">
         <div class="title-bar-text">OSRS Quest Progress</div>
@@ -817,6 +868,258 @@ function generateStaticHTML() {
     </div>
   </div>
   <script>
+    // Store original data for filtering
+    let originalChartData = ${JSON.stringify(chartData)};
+    let questChart = null;
+
+    // Player filtering functions
+    function getSelectedPlayers() {
+      const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="player-"]:checked');
+      return Array.from(checkboxes).map(cb => cb.value);
+    }
+
+    function updatePlayerVisualIndicators() {
+      const allCheckboxes = document.querySelectorAll('input[type="checkbox"][id^="player-"]');
+      allCheckboxes.forEach(checkbox => {
+        const label = checkbox.closest('.player-label');
+        if (label) {
+          if (checkbox.checked) {
+            label.classList.remove('unselected');
+          } else {
+            label.classList.add('unselected');
+          }
+        }
+      });
+    }
+
+        function updatePlayerSelection() {
+      const selectedPlayers = getSelectedPlayers();
+
+      // Update visual indicators
+      updatePlayerVisualIndicators();
+
+      // Update chart
+      updateChart(selectedPlayers);
+
+      // Update all tables
+      updateQuestTable(selectedPlayers);
+      updateLevelTable(selectedPlayers);
+      updateDiaryTable(selectedPlayers);
+      updateMusicTable(selectedPlayers);
+      updateAchievementsTable(selectedPlayers);
+
+      // Save selection state
+      savePlayerSelection(selectedPlayers);
+    }
+
+    function selectAllPlayers() {
+      const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="player-"]');
+      checkboxes.forEach(cb => cb.checked = true);
+      updatePlayerSelection();
+    }
+
+    function deselectAllPlayers() {
+      const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="player-"]');
+      checkboxes.forEach(cb => cb.checked = false);
+      updatePlayerSelection();
+    }
+
+    function savePlayerSelection(selectedPlayers) {
+      localStorage.setItem('osrs-selected-players', JSON.stringify(selectedPlayers));
+    }
+
+    function loadPlayerSelection() {
+      const saved = localStorage.getItem('osrs-selected-players');
+      if (saved) {
+        const selectedPlayers = JSON.parse(saved);
+        const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="player-"]');
+        checkboxes.forEach(cb => {
+          cb.checked = selectedPlayers.includes(cb.value);
+        });
+        updatePlayerSelection();
+      } else {
+        // If no saved state, just update visual indicators for initial state
+        updatePlayerVisualIndicators();
+      }
+    }
+
+    function updateChart(selectedPlayers) {
+      if (!questChart) return;
+
+      // Create mapping objects
+      const displayToPlayer = {
+        'Martynas': 'anime irl',
+        'Petras': 'swamp party',
+        'Karolis': 'clintonhill',
+        'Mangirdas': 'serasvasalas',
+        'Minvydas': 'juozulis',
+        'Darius': 'scarycorpse',
+        'Egle': 'dedspirit'
+      };
+
+      // Filter datasets to only show selected players
+      const filteredDatasets = originalChartData.datasets.filter(dataset => {
+        // Find the player key that matches this dataset label
+        const playerKey = displayToPlayer[dataset.label];
+        return playerKey && selectedPlayers.includes(playerKey);
+      });
+
+      questChart.data.datasets = filteredDatasets;
+      questChart.update();
+    }
+
+    function updateQuestTable(selectedPlayers) {
+      const windows = document.querySelectorAll('.window');
+      let table = null;
+      for (const window of windows) {
+        const titleText = window.querySelector('.title-bar-text');
+        if (titleText && titleText.textContent.includes('Quest Comparison')) {
+          table = window.querySelector('table');
+          break;
+        }
+      }
+      if (!table) return;
+
+      updateTable(table, selectedPlayers, 'quest');
+    }
+
+    function updateLevelTable(selectedPlayers) {
+      const windows = document.querySelectorAll('.window');
+      let table = null;
+      for (const window of windows) {
+        const titleText = window.querySelector('.title-bar-text');
+        if (titleText && titleText.textContent.includes('Level Comparison')) {
+          table = window.querySelector('table');
+          break;
+        }
+      }
+      if (!table) return;
+
+      updateTable(table, selectedPlayers, 'level');
+    }
+
+    function updateDiaryTable(selectedPlayers) {
+      const windows = document.querySelectorAll('.window');
+      let table = null;
+      for (const window of windows) {
+        const titleText = window.querySelector('.title-bar-text');
+        if (titleText && titleText.textContent.includes('Achievement Diaries')) {
+          table = window.querySelector('table');
+          break;
+        }
+      }
+      if (!table) return;
+
+      updateTable(table, selectedPlayers, 'diary');
+    }
+
+    function updateMusicTable(selectedPlayers) {
+      const windows = document.querySelectorAll('.window');
+      let table = null;
+      for (const window of windows) {
+        const titleText = window.querySelector('.title-bar-text');
+        if (titleText && titleText.textContent.includes('Music Tracks')) {
+          table = window.querySelector('table');
+          break;
+        }
+      }
+      if (!table) return;
+
+      updateTable(table, selectedPlayers, 'music');
+    }
+
+    function updateAchievementsTable(selectedPlayers) {
+      const windows = document.querySelectorAll('.window');
+      let table = null;
+      for (const window of windows) {
+        const titleText = window.querySelector('.title-bar-text');
+        if (titleText && titleText.textContent.includes('Recent Achievements')) {
+          table = window.querySelector('table');
+          break;
+        }
+      }
+      if (!table) return;
+
+      // For achievements table, filter rows by selected players
+      const rows = table.querySelectorAll('tbody tr');
+      rows.forEach(row => {
+        const playerCell = row.querySelector('td:first-child strong');
+        if (playerCell) {
+          const playerName = playerCell.textContent;
+          // Create mapping object
+          const displayToPlayer = {
+            'Martynas': 'anime irl',
+            'Petras': 'swamp party',
+            'Karolis': 'clintonhill',
+            'Mangirdas': 'serasvasalas',
+            'Minvydas': 'juozulis',
+            'Darius': 'scarycorpse',
+            'Egle': 'dedspirit'
+          };
+
+          const playerKey = displayToPlayer[playerName];
+          if (playerKey && selectedPlayers.includes(playerKey)) {
+            row.style.display = '';
+          } else {
+            row.style.display = 'none';
+          }
+        }
+      });
+    }
+
+    function updateTable(table, selectedPlayers, tableType) {
+      const headerRow = table.querySelector('thead tr');
+      const bodyRows = table.querySelectorAll('tbody tr');
+
+      if (!headerRow) return;
+
+      // Get all header cells (skip first cell which is the item name)
+      const headerCells = headerRow.querySelectorAll('th');
+      const playerHeaders = Array.from(headerCells).slice(1);
+
+      // Create mapping of column indices to show/hide
+      const columnsToShow = [0]; // Always show first column (item name)
+      const displayToPlayer = {
+        'Martynas': 'anime irl',
+        'Petras': 'swamp party',
+        'Karolis': 'clintonhill',
+        'Mangirdas': 'serasvasalas',
+        'Minvydas': 'juozulis',
+        'Darius': 'scarycorpse',
+        'Egle': 'dedspirit'
+      };
+
+      playerHeaders.forEach((header, index) => {
+        const displayName = header.textContent;
+        const playerKey = displayToPlayer[displayName];
+
+        if (playerKey && selectedPlayers.includes(playerKey)) {
+          columnsToShow.push(index + 1);
+          header.style.display = '';
+        } else {
+          header.style.display = 'none';
+        }
+      });
+
+      // Update body rows
+      bodyRows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        cells.forEach((cell, index) => {
+          if (columnsToShow.includes(index)) {
+            cell.style.display = '';
+          } else {
+            cell.style.display = 'none';
+          }
+        });
+
+        // For achievement diary tables, handle special formatting
+        if (tableType === 'diary' && row.querySelector('td[colspan]')) {
+          // This is a section header row, always show it
+          row.style.display = '';
+        }
+      });
+    }
+
     // Get window ID from title text
     function getWindowId(windowElement) {
       const titleText = windowElement.querySelector('.title-bar-text').textContent;
@@ -1105,6 +1408,7 @@ function generateStaticHTML() {
       loadMinimizedStates();
       loadWindowOrder();
       initializeDragAndDrop();
+      loadPlayerSelection();
     });
 
     // Also load states immediately in case DOMContentLoaded already fired
@@ -1113,15 +1417,17 @@ function generateStaticHTML() {
         loadMinimizedStates();
         loadWindowOrder();
         initializeDragAndDrop();
+        loadPlayerSelection();
       });
     } else {
       loadMinimizedStates();
       loadWindowOrder();
       initializeDragAndDrop();
+      loadPlayerSelection();
     }
 
     const ctx = document.getElementById('questChart').getContext('2d');
-    new Chart(ctx, {
+    questChart = new Chart(ctx, {
       type: 'line',
       data: ${JSON.stringify(chartData)},
       options: {
