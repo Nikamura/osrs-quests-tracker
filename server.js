@@ -601,15 +601,15 @@ function getAchievementsData() {
           }
         }
 
-        // Check for music track unlocks
-        if (currentData.music_tracks && previousData.music_tracks) {
-          for (const [trackName, currentUnlocked] of Object.entries(currentData.music_tracks)) {
-            const previousUnlocked = previousData.music_tracks[trackName] || false;
-            if (!previousUnlocked && currentUnlocked) {
+        // Check for level increases
+        if (currentData.levels && previousData.levels) {
+          for (const [skillName, currentLevel] of Object.entries(currentData.levels)) {
+            const previousLevel = previousData.levels[skillName] || 1;
+            if (currentLevel > previousLevel) {
               allAchievements.push({
                 player: player,
-                type: 'music',
-                name: trackName,
+                type: 'level',
+                name: `${skillName} (${previousLevel} → ${currentLevel})`,
                 timestamp: currentTimestamp,
                 previousTimestamp: previousTimestamp,
                 displayName: getDisplayName(player)
