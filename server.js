@@ -740,26 +740,33 @@ function generateAchievementsTable(achievementsData) {
   tableHtml += '<table class="interactive" style="width: 100%;">';
 
   // Header
-  tableHtml += '<thead><tr><th>Player</th><th>Achievement</th><th>Type</th><th>Date</th><th>Time Since Previous</th></tr></thead>';
+  tableHtml += '<thead><tr><th>Player</th><th>Achievement</th><th>Type</th><th>Date</th></tr></thead>';
 
   // Body
   tableHtml += '<tbody>';
   for (const achievement of achievementsData) {
     const timeDiff = achievement.timestamp.getTime() - achievement.previousTimestamp.getTime();
-    const timeDiffHours = Math.round(timeDiff / (1000 * 60 * 60));
-    const timeDiffText = timeDiffHours < 24 ? `${timeDiffHours}h` : `${Math.round(timeDiffHours / 24)}d`;
 
     let rowClass = `achievement-${achievement.type}`;
     if (timeDiff < 1000 * 60 * 60 * 24) { // Less than 24 hours
       rowClass += ' achievement-new';
     }
 
+    // Format date with hours and minutes
+    const dateWithTime = achievement.timestamp.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+
     tableHtml += `<tr class="${rowClass}">`;
     tableHtml += `<td><strong>${achievement.displayName}</strong></td>`;
     tableHtml += `<td>${achievement.name}</td>`;
     tableHtml += `<td>${achievement.type.charAt(0).toUpperCase() + achievement.type.slice(1)}</td>`;
-    tableHtml += `<td>${achievement.timestamp.toLocaleDateString()}</td>`;
-    tableHtml += `<td>${timeDiffText}</td>`;
+    tableHtml += `<td>${dateWithTime}</td>`;
     tableHtml += '</tr>';
   }
   tableHtml += '</tbody></table></div>';
