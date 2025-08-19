@@ -70,6 +70,19 @@ app.get("/", (req, res) => {
         .achievement-league { background-color: #ff9f40; }
         .window.minimized .window-body { display: none; }
         .window.minimized { margin-bottom: 10px; }
+        .window.dragging { opacity: 0.5; z-index: 1000; }
+        .window { cursor: grab; transition: transform 0.2s ease; }
+        .window:active { cursor: grabbing; }
+        .container.drag-over { background-color: rgba(255, 255, 255, 0.1); }
+        .drop-indicator {
+          position: absolute;
+          background-color: #00ff00;
+          height: 4px;
+          width: 100%;
+          border-radius: 2px;
+          z-index: 999;
+          display: none;
+        }
       </style>
     </head>
     <body style="background-color: #008080;">
@@ -171,6 +184,46 @@ app.get("/", (req, res) => {
           localStorage.setItem('osrs-minimized-windows', JSON.stringify(states));
         }
 
+        // Load window order from localStorage
+        function loadWindowOrder() {
+          const savedOrder = JSON.parse(localStorage.getItem('osrs-window-order') || '[]');
+          if (savedOrder.length === 0) return;
+
+          const container = document.querySelector('.container');
+          const windows = Array.from(container.querySelectorAll('.window'));
+
+          // Create a map of window IDs to elements
+          const windowMap = {};
+          windows.forEach(windowElement => {
+            const windowId = getWindowId(windowElement);
+            windowMap[windowId] = windowElement;
+          });
+
+          // Reorder windows based on saved order
+          savedOrder.forEach(windowId => {
+            if (windowMap[windowId]) {
+              container.appendChild(windowMap[windowId]);
+            }
+          });
+
+          // Append any windows not in the saved order (new windows)
+          windows.forEach(windowElement => {
+            const windowId = getWindowId(windowElement);
+            if (!savedOrder.includes(windowId)) {
+              container.appendChild(windowElement);
+            }
+          });
+        }
+
+        // Save window order to localStorage
+        function saveWindowOrder() {
+          const container = document.querySelector('.container');
+          const windowOrder = Array.from(container.querySelectorAll('.window')).map(windowElement =>
+            getWindowId(windowElement)
+          );
+          localStorage.setItem('osrs-window-order', JSON.stringify(windowOrder));
+        }
+
         // Sync states across all open windows/tabs
         function syncWindowStates(changedWindowId, isMinimized) {
           document.querySelectorAll('.window').forEach(windowElement => {
@@ -181,6 +234,26 @@ app.get("/", (req, res) => {
               } else {
                 windowElement.classList.remove('minimized');
               }
+            }
+          });
+        }
+
+        // Sync window order across all open windows/tabs
+        function syncWindowOrder(newOrder) {
+          const container = document.querySelector('.container');
+          const windows = Array.from(container.querySelectorAll('.window'));
+
+          // Create a map of window IDs to elements
+          const windowMap = {};
+          windows.forEach(windowElement => {
+            const windowId = getWindowId(windowElement);
+            windowMap[windowId] = windowElement;
+          });
+
+          // Reorder windows based on new order
+          newOrder.forEach(windowId => {
+            if (windowMap[windowId]) {
+              container.appendChild(windowMap[windowId]);
             }
           });
         }
@@ -201,22 +274,176 @@ app.get("/", (req, res) => {
           }));
         }
 
+        // Initialize drag and drop functionality
+        function initializeDragAndDrop() {
+          const container = document.querySelector('.container');
+          let draggedElement = null;
+          let dropIndicator = null;
+
+          // Create drop indicator
+          dropIndicator = document.createElement('div');
+          dropIndicator.className = 'drop-indicator';
+          document.body.appendChild(dropIndicator);
+
+          document.querySelectorAll('.window').forEach(windowElement => {
+            windowElement.draggable = true;
+
+            windowElement.addEventListener('dragstart', function(e) {
+              draggedElement = this;
+              this.classList.add('dragging');
+              container.classList.add('drag-over');
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData('text/html', this.outerHTML);
+            });
+
+            windowElement.addEventListener('dragend', function(e) {
+              this.classList.remove('dragging');
+              container.classList.remove('drag-over');
+              dropIndicator.style.display = 'none';
+              draggedElement = null;
+            });
+
+            windowElement.addEventListener('dragover', function(e) {
+              if (draggedElement && draggedElement !== this) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+
+                const rect = this.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+
+                if (e.clientY < midY) {
+                  // Show indicator above this element
+                  dropIndicator.style.display = 'block';
+                  dropIndicator.style.top = (rect.top - 2) + 'px';
+                  dropIndicator.style.left = rect.left + 'px';
+                  dropIndicator.style.width = rect.width + 'px';
+                } else {
+                  // Show indicator below this element
+                  dropIndicator.style.display = 'block';
+                  dropIndicator.style.top = (rect.bottom - 2) + 'px';
+                  dropIndicator.style.left = rect.left + 'px';
+                  dropIndicator.style.width = rect.width + 'px';
+                }
+              }
+            });
+
+            windowElement.addEventListener('drop', function(e) {
+              if (draggedElement && draggedElement !== this) {
+                e.preventDefault();
+
+                const rect = this.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+
+                if (e.clientY < midY) {
+                  // Insert before this element
+                  container.insertBefore(draggedElement, this);
+                } else {
+                  // Insert after this element
+                  container.insertBefore(draggedElement, this.nextSibling);
+                }
+
+                // Save and sync the new order
+                saveWindowOrder();
+
+                // Broadcast order change to other windows/tabs
+                const newOrder = Array.from(container.querySelectorAll('.window')).map(w => getWindowId(w));
+                localStorage.setItem('osrs-order-change', JSON.stringify({
+                  order: newOrder,
+                  timestamp: Date.now()
+                }));
+              }
+            });
+          });
+
+          // Handle drag over container (for empty spaces)
+          container.addEventListener('dragover', function(e) {
+            if (draggedElement) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+
+              // Find the closest window element
+              const afterElement = getDragAfterElement(container, e.clientY);
+              if (!afterElement) {
+                // Show indicator at the end
+                const lastWindow = container.lastElementChild;
+                if (lastWindow) {
+                  const rect = lastWindow.getBoundingClientRect();
+                  dropIndicator.style.display = 'block';
+                  dropIndicator.style.top = (rect.bottom + 10) + 'px';
+                  dropIndicator.style.left = rect.left + 'px';
+                  dropIndicator.style.width = rect.width + 'px';
+                }
+              }
+            }
+          });
+
+          container.addEventListener('drop', function(e) {
+            if (draggedElement) {
+              e.preventDefault();
+              const afterElement = getDragAfterElement(container, e.clientY);
+              if (!afterElement) {
+                container.appendChild(draggedElement);
+              } else {
+                container.insertBefore(draggedElement, afterElement);
+              }
+
+              // Save and sync the new order
+              saveWindowOrder();
+
+              // Broadcast order change to other windows/tabs
+              const newOrder = Array.from(container.querySelectorAll('.window')).map(w => getWindowId(w));
+              localStorage.setItem('osrs-order-change', JSON.stringify({
+                order: newOrder,
+                timestamp: Date.now()
+              }));
+            }
+          });
+        }
+
+        function getDragAfterElement(container, y) {
+          const draggableElements = [...container.querySelectorAll('.window:not(.dragging)')];
+
+          return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+
+            if (offset < 0 && offset > closest.offset) {
+              return { offset: offset, element: child };
+            } else {
+              return closest;
+            }
+          }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
         // Listen for storage changes from other windows/tabs
         window.addEventListener('storage', function(e) {
           if (e.key === 'osrs-window-change') {
             const change = JSON.parse(e.newValue);
             syncWindowStates(change.windowId, change.isMinimized);
+          } else if (e.key === 'osrs-order-change') {
+            const change = JSON.parse(e.newValue);
+            syncWindowOrder(change.order);
           }
         });
 
         // Load states when page loads
-        document.addEventListener('DOMContentLoaded', loadMinimizedStates);
+        document.addEventListener('DOMContentLoaded', function() {
+          loadMinimizedStates();
+          loadWindowOrder();
+          initializeDragAndDrop();
+        });
 
         // Also load states immediately in case DOMContentLoaded already fired
         if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', loadMinimizedStates);
+          document.addEventListener('DOMContentLoaded', function() {
+            loadMinimizedStates();
+            loadWindowOrder();
+            initializeDragAndDrop();
+          });
         } else {
           loadMinimizedStates();
+          loadWindowOrder();
+          initializeDragAndDrop();
         }
 
         const ctx = document.getElementById('questChart').getContext('2d');
