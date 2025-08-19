@@ -68,6 +68,8 @@ app.get("/", (req, res) => {
         .achievement-combat { background-color: #ff6384; }
         .achievement-collection { background-color: #9966ff; }
         .achievement-league { background-color: #ff9f40; }
+        .window.minimized .window-body { display: none; }
+        .window.minimized { margin-bottom: 10px; }
       </style>
     </head>
     <body style="background-color: #008080;">
@@ -76,9 +78,7 @@ app.get("/", (req, res) => {
           <div class="title-bar">
             <div class="title-bar-text">OSRS Quest Progress</div>
             <div class="title-bar-controls">
-              <button aria-label="Minimize"></button>
-              <button aria-label="Maximize"></button>
-              <button aria-label="Close"></button>
+              <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
             </div>
           </div>
           <div class="window-body">
@@ -90,6 +90,9 @@ app.get("/", (req, res) => {
         <div class="window main-window">
           <div class="title-bar">
             <div class="title-bar-text">Quest Comparison</div>
+            <div class="title-bar-controls">
+              <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+            </div>
           </div>
           <div class="window-body">
             ${questTableHtml}
@@ -98,6 +101,9 @@ app.get("/", (req, res) => {
         <div class="window main-window">
           <div class="title-bar">
             <div class="title-bar-text">Level Comparison</div>
+            <div class="title-bar-controls">
+              <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+            </div>
           </div>
           <div class="window-body">
             ${levelTableHtml}
@@ -106,6 +112,9 @@ app.get("/", (req, res) => {
         <div class="window main-window">
           <div class="title-bar">
             <div class="title-bar-text">Achievement Diaries Comparison</div>
+            <div class="title-bar-controls">
+              <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+            </div>
           </div>
           <div class="window-body">
             ${achievementDiaryTableHtml}
@@ -114,6 +123,9 @@ app.get("/", (req, res) => {
         <div class="window main-window">
           <div class="title-bar">
             <div class="title-bar-text">Music Tracks Comparison</div>
+            <div class="title-bar-controls">
+              <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+            </div>
           </div>
           <div class="window-body">
             ${musicTracksTableHtml}
@@ -122,6 +134,9 @@ app.get("/", (req, res) => {
         <div class="window main-window">
           <div class="title-bar">
             <div class="title-bar-text">Recent Achievements & Progress</div>
+            <div class="title-bar-controls">
+              <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+            </div>
           </div>
           <div class="window-body">
             ${achievementsTableHtml}
@@ -129,6 +144,81 @@ app.get("/", (req, res) => {
         </div>
       </div>
       <script>
+        // Get window ID from title text
+        function getWindowId(windowElement) {
+          const titleText = windowElement.querySelector('.title-bar-text').textContent;
+          return titleText.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        }
+
+        // Load minimized states from localStorage
+        function loadMinimizedStates() {
+          const savedStates = JSON.parse(localStorage.getItem('osrs-minimized-windows') || '{}');
+          document.querySelectorAll('.window').forEach(windowElement => {
+            const windowId = getWindowId(windowElement);
+            if (savedStates[windowId]) {
+              windowElement.classList.add('minimized');
+            }
+          });
+        }
+
+        // Save minimized states to localStorage
+        function saveMinimizedStates() {
+          const states = {};
+          document.querySelectorAll('.window').forEach(windowElement => {
+            const windowId = getWindowId(windowElement);
+            states[windowId] = windowElement.classList.contains('minimized');
+          });
+          localStorage.setItem('osrs-minimized-windows', JSON.stringify(states));
+        }
+
+        // Sync states across all open windows/tabs
+        function syncWindowStates(changedWindowId, isMinimized) {
+          document.querySelectorAll('.window').forEach(windowElement => {
+            const windowId = getWindowId(windowElement);
+            if (windowId === changedWindowId) {
+              if (isMinimized) {
+                windowElement.classList.add('minimized');
+              } else {
+                windowElement.classList.remove('minimized');
+              }
+            }
+          });
+        }
+
+        function toggleWindow(button) {
+          const windowElement = button.closest('.window');
+          const windowId = getWindowId(windowElement);
+          const isMinimized = windowElement.classList.toggle('minimized');
+
+          // Save state and notify other windows
+          saveMinimizedStates();
+
+          // Broadcast change to other windows/tabs
+          localStorage.setItem('osrs-window-change', JSON.stringify({
+            windowId: windowId,
+            isMinimized: isMinimized,
+            timestamp: Date.now()
+          }));
+        }
+
+        // Listen for storage changes from other windows/tabs
+        window.addEventListener('storage', function(e) {
+          if (e.key === 'osrs-window-change') {
+            const change = JSON.parse(e.newValue);
+            syncWindowStates(change.windowId, change.isMinimized);
+          }
+        });
+
+        // Load states when page loads
+        document.addEventListener('DOMContentLoaded', loadMinimizedStates);
+
+        // Also load states immediately in case DOMContentLoaded already fired
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', loadMinimizedStates);
+        } else {
+          loadMinimizedStates();
+        }
+
         const ctx = document.getElementById('questChart').getContext('2d');
         new Chart(ctx, {
           type: 'line',
