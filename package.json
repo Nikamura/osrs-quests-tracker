@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "fetch-data": "node data_fetcher.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "cleanup": "node cleanup_player_data.js"
   },
   "keywords": [],
   "author": "",
