@@ -14,6 +14,9 @@ app.get("/", (req, res) => {
   const levelComparisonData = getLevelComparisonData();
   const levelTableHtml = generateLevelComparisonTable(levelComparisonData);
 
+  const achievementDiaryComparisonData = getAchievementDiaryComparisonData();
+  const achievementDiaryTableHtml = generateAchievementDiaryComparisonTable(achievementDiaryComparisonData);
+
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -46,6 +49,9 @@ app.get("/", (req, res) => {
         .level-high { color: #006600; }
         .level-medium { color: #cc6600; }
         .level-low { color: #cc0000; }
+        .diary-complete { background-color: #3a8e3a; color: white; font-weight: bold; }
+        .diary-partial { background-color: #ffcc00; }
+        .diary-not-started { background-color: #cccccc; }
       </style>
     </head>
     <body style="background-color: #008080;">
@@ -79,6 +85,14 @@ app.get("/", (req, res) => {
           </div>
           <div class="window-body">
             ${levelTableHtml}
+          </div>
+        </div>
+        <div class="window main-window">
+          <div class="title-bar">
+            <div class="title-bar-text">Achievement Diaries Comparison</div>
+          </div>
+          <div class="window-body">
+            ${achievementDiaryTableHtml}
           </div>
         </div>
       </div>
@@ -257,6 +271,99 @@ function generateLevelComparisonTable(comparisonData) {
       tableHtml += `<td class="level-cell ${levelClass}">${level}</td>`;
     }
     tableHtml += '</tr>';
+  }
+  tableHtml += '</tbody></table></div>';
+
+  return tableHtml;
+}
+
+function getAchievementDiaryComparisonData() {
+  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
+  const latestPlayerData = {};
+  const allAchievements = new Set();
+
+  for (const player of players) {
+    const playerDir = path.join("player_data", player);
+    const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
+    if (files.length === 0) continue;
+
+    const latestFile = files.sort().pop();
+    const filePath = path.join(playerDir, latestFile);
+    const data = JSON.parse(readFileSync(filePath, "utf-8"));
+
+    if (data.achievement_diaries) {
+      latestPlayerData[player] = data.achievement_diaries;
+      Object.keys(data.achievement_diaries).forEach(achievement => allAchievements.add(achievement));
+    }
+  }
+
+  return {
+    players: Object.keys(latestPlayerData).sort(),
+    achievements: [...allAchievements].sort(),
+    playerAchievements: latestPlayerData
+  };
+}
+
+function generateAchievementDiaryComparisonTable(comparisonData) {
+  const { players, achievements, playerAchievements } = comparisonData;
+  if (players.length === 0) {
+    return "<p>No player data found to compare achievement diaries.</p>";
+  }
+
+  let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
+  tableHtml += '<table class="interactive" style="width: 100%;">';
+
+  // Header
+  tableHtml += '<thead><tr><th>Achievement Diary</th>';
+  for (const player of players) {
+    tableHtml += `<th>${getDisplayName(player)}</th>`;
+  }
+  tableHtml += '</tr></thead>';
+
+  // Body
+  tableHtml += '<tbody>';
+  for (const achievement of achievements) {
+    tableHtml += `<tr><td colspan="${players.length + 1}" style="background-color: #e0e0e0; font-weight: bold; text-align: center;">${achievement}</td></tr>`;
+
+    // Add rows for each difficulty level
+    const difficulties = ['Easy', 'Medium', 'Hard', 'Elite'];
+    for (const difficulty of difficulties) {
+      const statuses = players.map(player => {
+        const playerData = playerAchievements[player]?.[achievement];
+        if (!playerData || !playerData[difficulty]) return null;
+        return playerData[difficulty].complete;
+      });
+
+      let rowClass = '';
+      const completedCount = statuses.filter(s => s === true).length;
+      if (completedCount === players.length) {
+        rowClass = 'diary-complete';
+      } else if (completedCount > 0) {
+        rowClass = 'diary-partial';
+      } else {
+        rowClass = 'diary-not-started';
+      }
+
+      tableHtml += `<tr class="${rowClass}">`;
+      tableHtml += `<td style="padding-left: 20px;">${difficulty}</td>`;
+
+      for (const status of statuses) {
+        let statusClass = '';
+        let statusText = '';
+        if (status === true) {
+          statusClass = 'diary-complete';
+          statusText = '✓';
+        } else if (status === false) {
+          statusClass = 'diary-partial';
+          statusText = '✗';
+        } else {
+          statusClass = 'diary-not-started';
+          statusText = '-';
+        }
+        tableHtml += `<td class="${statusClass}" style="text-align: center;">${statusText}</td>`;
+      }
+      tableHtml += '</tr>';
+    }
   }
   tableHtml += '</tbody></table></div>';
 
