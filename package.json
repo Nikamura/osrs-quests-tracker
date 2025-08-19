@@ -1,0 +1,12 @@
+{
+  "name": "osrs-quest-tracker",
+  "version": "1.0.0",
+  "description": "",
+  "main": "data_fetcher.js",
+  "scripts": {
+    "fetch-data": "node data_fetcher.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
