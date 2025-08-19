@@ -11,6 +11,9 @@ app.get("/", (req, res) => {
   const questComparisonData = getQuestComparisonData();
   const questTableHtml = generateQuestComparisonTable(questComparisonData);
 
+  const levelComparisonData = getLevelComparisonData();
+  const levelTableHtml = generateLevelComparisonTable(levelComparisonData);
+
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -36,6 +39,13 @@ app.get("/", (req, res) => {
           margin: 32px;
           width: 850px;
         }
+        .level-cell {
+          text-align: center;
+          font-weight: bold;
+        }
+        .level-high { color: #006600; }
+        .level-medium { color: #cc6600; }
+        .level-low { color: #cc0000; }
       </style>
     </head>
     <body style="background-color: #008080;">
@@ -61,6 +71,14 @@ app.get("/", (req, res) => {
           </div>
           <div class="window-body">
             ${questTableHtml}
+          </div>
+        </div>
+        <div class="window main-window">
+          <div class="title-bar">
+            <div class="title-bar-text">Level Comparison</div>
+          </div>
+          <div class="window-body">
+            ${levelTableHtml}
           </div>
         </div>
       </div>
@@ -173,6 +191,70 @@ function generateQuestComparisonTable(comparisonData) {
       if (status === 1) statusClass = 'status-in-progress';
       if (status === 2) statusClass = 'status-completed';
       tableHtml += `<td class="${statusClass}"></td>`;
+    }
+    tableHtml += '</tr>';
+  }
+  tableHtml += '</tbody></table></div>';
+
+  return tableHtml;
+}
+
+function getLevelComparisonData() {
+  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
+  const latestPlayerData = {};
+  const allSkills = new Set();
+
+  for (const player of players) {
+    const playerDir = path.join("player_data", player);
+    const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
+    if (files.length === 0) continue;
+
+    const latestFile = files.sort().pop();
+    const filePath = path.join(playerDir, latestFile);
+    const data = JSON.parse(readFileSync(filePath, "utf-8"));
+
+    if (data.levels) {
+      latestPlayerData[player] = data.levels;
+      Object.keys(data.levels).forEach(skill => allSkills.add(skill));
+    }
+  }
+
+  return {
+    players: Object.keys(latestPlayerData).sort(),
+    skills: [...allSkills].sort(),
+    playerLevels: latestPlayerData
+  };
+}
+
+function generateLevelComparisonTable(comparisonData) {
+  const { players, skills, playerLevels } = comparisonData;
+  if (players.length === 0) {
+    return "<p>No player data found to compare levels.</p>";
+  }
+
+  let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
+  tableHtml += '<table class="interactive" style="width: 100%;">';
+
+  // Header
+  tableHtml += '<thead><tr><th>Skill</th>';
+  for (const player of players) {
+    tableHtml += `<th>${getDisplayName(player)}</th>`;
+  }
+  tableHtml += '</tr></thead>';
+
+  // Body
+  tableHtml += '<tbody>';
+  for (const skill of skills) {
+    tableHtml += '<tr>';
+    tableHtml += `<td>${skill}</td>`;
+
+    for (const player of players) {
+      const level = playerLevels[player]?.[skill] ?? 0;
+      let levelClass = 'level-low';
+      if (level >= 80) levelClass = 'level-high';
+      else if (level >= 50) levelClass = 'level-medium';
+
+      tableHtml += `<td class="level-cell ${levelClass}">${level}</td>`;
     }
     tableHtml += '</tr>';
   }
