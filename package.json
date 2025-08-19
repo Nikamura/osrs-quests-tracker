@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "data_fetcher.js",
+  "type": "module",
   "scripts": {
     "fetch-data": "node data_fetcher.js"
   },
