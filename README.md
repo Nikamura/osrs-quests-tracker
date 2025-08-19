@@ -9,14 +9,15 @@ This project is a tool to track Old School RuneScape (OSRS) quest progress for a
 ## Features
 
 -   **Data Fetching**: Periodically fetches quest completion data from the [RuneLite API](https://sync.runescape.wiki/) for a list of players.
--   **Data Storage**: Stores player data locally in timestamped JSON files.
--   **Data Display**: (Future) A web interface to view and compare quest progress among friends.
+-   **Data Storage**: Stores player data locally in timestamped JSON files. 
+-   **Data Display**: A web interface to view and compare quest progress among friends.
 
 ## Project Structure
 
 ```
 osrs-quest-tracker/
 ├── data_fetcher.js     # Script to fetch player quest data
+├── server.js           # Script to serve the quest data as a web page
 ├── player_data/        # Directory to store fetched data for each player
 ├── package.json        # Project metadata and dependencies
 ├── jsconfig.json       # JS language service configuration
@@ -50,12 +51,19 @@ To fetch quest data for players, you can run the `fetch-data` script:
 npm run fetch-data
 ```
 
+To view the quest progress chart, run the web server:
+
+```bash
+npm start
+```
+
+Then, open your web browser and navigate to `http://localhost:3000`.
+
 The list of players to track is hardcoded in the `players` array within `data_fetcher.js`. You will need to modify this array to track different players.
 
 Each time the script is run, it creates a new timestamped JSON file for each player in the `player_data/{playerName}/` directory.
 
 ## Future Work
 
--   Implement a web server (e.g., using Express.js) to serve the aggregated data.
 -   Create a frontend to display the quest data in a sortable, filterable table.
 -   Add historical tracking to see quest completion over time.

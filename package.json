@@ -5,9 +5,13 @@
   "main": "data_fetcher.js",
   "type": "module",
   "scripts": {
-    "fetch-data": "node data_fetcher.js"
+    "fetch-data": "node data_fetcher.js",
+    "start": "node server.js"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.1.0"
+  }
 }
