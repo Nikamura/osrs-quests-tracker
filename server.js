@@ -487,7 +487,9 @@ function getDisplayName(playerDir) {
     'swamp party': 'Petras',
     'clintonhill': 'Karolis',
     'serasvasalas': 'Mangirdas',
-    'juozulis': 'Minvydas'
+    'juozulis': 'Minvydas',
+    'scarycorpse': 'Darius',
+    'dedspirit': 'Egle'
   };
   return nameMap[playerDir] || playerDir;
 }
