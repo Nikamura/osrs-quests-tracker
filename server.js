@@ -17,6 +17,9 @@ app.get("/", (req, res) => {
   const achievementDiaryComparisonData = getAchievementDiaryComparisonData();
   const achievementDiaryTableHtml = generateAchievementDiaryComparisonTable(achievementDiaryComparisonData);
 
+  const musicTracksComparisonData = getMusicTracksComparisonData();
+  const musicTracksTableHtml = generateMusicTracksComparisonTable(musicTracksComparisonData);
+
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -52,6 +55,8 @@ app.get("/", (req, res) => {
         .diary-complete { background-color: #3a8e3a; color: white; font-weight: bold; }
         .diary-partial { background-color: #ffcc00; }
         .diary-not-started { background-color: #cccccc; }
+        .music-track-unlocked { background-color: #3a8e3a; color: white; font-weight: bold; }
+        .music-track-locked { background-color: #cccccc; }
       </style>
     </head>
     <body style="background-color: #008080;">
@@ -93,6 +98,14 @@ app.get("/", (req, res) => {
           </div>
           <div class="window-body">
             ${achievementDiaryTableHtml}
+          </div>
+        </div>
+        <div class="window main-window">
+          <div class="title-bar">
+            <div class="title-bar-text">Music Tracks Comparison</div>
+          </div>
+          <div class="window-body">
+            ${musicTracksTableHtml}
           </div>
         </div>
       </div>
@@ -364,6 +377,89 @@ function generateAchievementDiaryComparisonTable(comparisonData) {
       }
       tableHtml += '</tr>';
     }
+  }
+  tableHtml += '</tbody></table></div>';
+
+  return tableHtml;
+}
+
+function getMusicTracksComparisonData() {
+  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
+  const latestPlayerData = {};
+  const allMusicTracks = new Set();
+
+  for (const player of players) {
+    const playerDir = path.join("player_data", player);
+    const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
+    if (files.length === 0) continue;
+
+    const latestFile = files.sort().pop();
+    const filePath = path.join(playerDir, latestFile);
+    const data = JSON.parse(readFileSync(filePath, "utf-8"));
+
+    if (data.music_tracks) {
+      latestPlayerData[player] = data.music_tracks;
+      Object.keys(data.music_tracks).forEach(track => allMusicTracks.add(track));
+    }
+  }
+
+  return {
+    players: Object.keys(latestPlayerData).sort(),
+    musicTracks: [...allMusicTracks].sort(),
+    playerMusicTracks: latestPlayerData
+  };
+}
+
+function generateMusicTracksComparisonTable(comparisonData) {
+  const { players, musicTracks, playerMusicTracks } = comparisonData;
+  if (players.length === 0) {
+    return "<p>No player data found to compare music tracks.</p>";
+  }
+
+  let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
+  tableHtml += '<table class="interactive" style="width: 100%;">';
+
+  // Header
+  tableHtml += '<thead><tr><th>Music Track</th>';
+  for (const player of players) {
+    tableHtml += `<th>${getDisplayName(player)}</th>`;
+  }
+  tableHtml += '</tr></thead>';
+
+  // Body
+  tableHtml += '<tbody>';
+  for (const track of musicTracks) {
+    const statuses = players.map(player => {
+      const playerData = playerMusicTracks[player]?.[track];
+      return playerData === true;
+    });
+
+    let rowClass = '';
+    const unlockedCount = statuses.filter(s => s === true).length;
+    if (unlockedCount === players.length) {
+      rowClass = 'music-track-unlocked';
+    } else if (unlockedCount > 0) {
+      rowClass = 'diary-partial';
+    } else {
+      rowClass = 'music-track-locked';
+    }
+
+    tableHtml += `<tr class="${rowClass}">`;
+    tableHtml += `<td>${track}</td>`;
+
+    for (const status of statuses) {
+      let statusClass = '';
+      let statusText = '';
+      if (status === true) {
+        statusClass = 'music-track-unlocked';
+        statusText = '✓';
+      } else {
+        statusClass = 'music-track-locked';
+        statusText = '✗';
+      }
+      tableHtml += `<td class="${statusClass}" style="text-align: center;">${statusText}</td>`;
+    }
+    tableHtml += '</tr>';
   }
   tableHtml += '</tbody></table></div>';
 
