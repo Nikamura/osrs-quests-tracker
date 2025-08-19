@@ -27,7 +27,7 @@ const players = [
   "anime irl",
   "swamp party",
   "juozulis",
-  "seras vasalas"
+  "serasvasalas"
 ]
 
 if (!existsSync("player_data")) {

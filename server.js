@@ -92,7 +92,11 @@ app.get("/", (req, res) => {
   `);
 });
 
-app.listen(port, () => {
+app.listen(port, (err) => {
+  if (err) {
+    console.error(err);
+    return;
+  }
   console.log(`Server running at http://localhost:${port}`);
 });
 
