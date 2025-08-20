@@ -22,6 +22,7 @@ A comprehensive tool to track Old School RuneScape (OSRS) progress for a group o
 
 ### Web Interface
 - **Interactive Dashboard**: Windows 98-style UI with draggable, minimizable windows
+- **Loading Screen**: Smooth loading experience with spinner animation that prevents content flashing
 - **Configuration Window**: Centralized control panel for:
   - Player selection/deselection with visual indicators
   - Window visibility toggles to show/hide specific data windows

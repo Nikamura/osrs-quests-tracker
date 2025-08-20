@@ -1147,6 +1147,61 @@ async function generateStaticHTML() {
   <link rel="stylesheet" href="https://unpkg.com/98.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
+    /* Loading screen styles */
+    .loading-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #008080;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      font-family: 'MS Sans Serif', sans-serif;
+    }
+
+    .loading-content {
+      text-align: center;
+      color: white;
+    }
+
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .loading-subtext {
+      font-size: 12px;
+      opacity: 0.8;
+    }
+
+    /* Hide main content during loading */
+    body.loading .container {
+      visibility: hidden;
+    }
+
+    body.loading .generated-at {
+      visibility: hidden;
+    }
+
     tbody tr:not(.all-completed):not(.not-started-by-any):not(.completed-by-one):nth-child(even) { background-color: #ececec; }
     .status-in-progress { background-color: yellow; }
     .status-completed { background-color: lime; }
@@ -1298,7 +1353,16 @@ async function generateStaticHTML() {
     }
   </style>
 </head>
-<body style="background-color: #008080;">
+<body class="loading" style="background-color: #008080;">
+  <!-- Loading screen -->
+  <div class="loading-screen" id="loadingScreen">
+    <div class="loading-content">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Loading OSRS Tracker</div>
+      <div class="loading-subtext">Initializing windows and applying saved settings...</div>
+    </div>
+  </div>
+
   <div class="generated-at">Generated: ${generatedAt}</div>
   <div class="container">
     <div class="window main-window">
@@ -1428,6 +1492,40 @@ async function generateStaticHTML() {
     </div>
   </div>
   <script>
+    // Apply initial states immediately to prevent flashing
+    (function() {
+      try {
+        // Apply window visibility immediately
+        const savedWindows = localStorage.getItem('osrs-selected-windows');
+        if (savedWindows) {
+          const selectedWindows = JSON.parse(savedWindows);
+          const allWindows = document.querySelectorAll('.window[data-window-id]');
+          allWindows.forEach(function(windowElement) {
+            const windowId = windowElement.dataset.windowId;
+            if (selectedWindows.indexOf(windowId) === -1) {
+              windowElement.classList.add('hidden');
+            }
+          });
+        }
+
+        // Apply minimized states immediately
+        const savedStates = JSON.parse(localStorage.getItem('osrs-minimized-windows') || '{}');
+        document.querySelectorAll('.window').forEach(function(windowElement) {
+          const titleText = windowElement.querySelector('.title-bar-text');
+          if (titleText) {
+            const windowId = titleText.textContent.toLowerCase().replace(/\\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+            if (savedStates[windowId]) {
+              windowElement.classList.add('minimized');
+            }
+          }
+        });
+      } catch (e) {
+        // If localStorage fails, continue normally
+        console.warn('Failed to apply initial states:', e);
+      }
+    })();
+  </script>
+  <script>
     // Store original data for filtering
     let originalChartData = ${JSON.stringify(chartData)};
     let originalTotalLevelChartData = ${JSON.stringify(totalLevelChartData)};
@@ -1550,6 +1648,34 @@ async function generateStaticHTML() {
         // If no saved state, just update visual indicators for initial state
         updateWindowVisualIndicators();
       }
+    }
+
+    // Apply initial window states from localStorage before DOM is fully loaded
+    function applyInitialStates() {
+      // Apply window visibility immediately
+      const savedWindows = localStorage.getItem('osrs-selected-windows');
+      if (savedWindows) {
+        const selectedWindows = JSON.parse(savedWindows);
+        const allWindows = document.querySelectorAll('.window[data-window-id]');
+        allWindows.forEach(windowElement => {
+          const windowId = windowElement.dataset.windowId;
+          if (!selectedWindows.includes(windowId)) {
+            windowElement.classList.add('hidden');
+          }
+        });
+      }
+
+      // Apply minimized states immediately
+      const savedStates = JSON.parse(localStorage.getItem('osrs-minimized-windows') || '{}');
+      document.querySelectorAll('.window').forEach(windowElement => {
+        const titleText = windowElement.querySelector('.title-bar-text');
+        if (titleText) {
+          const windowId = titleText.textContent.toLowerCase().replace(/\\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+          if (savedStates[windowId]) {
+            windowElement.classList.add('minimized');
+          }
+        }
+      });
     }
 
     function selectAllPlayers() {
@@ -2408,30 +2534,40 @@ async function generateStaticHTML() {
       }
     });
 
-    // Load states when page loads
-    document.addEventListener('DOMContentLoaded', function() {
-      loadMinimizedStates();
+    // Initialize everything and hide loading screen
+    function initializeApp() {
+      // Apply initial states immediately to prevent flashing
+      applyInitialStates();
+
+      // Load all saved states (this will update checkboxes and other UI elements)
       loadWindowOrder();
-      initializeDragAndDrop();
       loadPlayerSelection();
       loadWindowVisibility();
-    });
+
+      // Initialize interactive features
+      initializeDragAndDrop();
+
+      // Small delay to ensure all DOM updates are applied
+      setTimeout(() => {
+        // Hide loading screen and show content
+        const loadingScreen = document.getElementById('loadingScreen');
+        const body = document.body;
+
+        if (loadingScreen) {
+          loadingScreen.style.display = 'none';
+        }
+        body.classList.remove('loading');
+      }, 50);
+    }
+
+    // Load states when page loads
+    document.addEventListener('DOMContentLoaded', initializeApp);
 
     // Also load states immediately in case DOMContentLoaded already fired
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', function() {
-        loadMinimizedStates();
-        loadWindowOrder();
-        initializeDragAndDrop();
-        loadPlayerSelection();
-        loadWindowVisibility();
-      });
+      document.addEventListener('DOMContentLoaded', initializeApp);
     } else {
-      loadMinimizedStates();
-      loadWindowOrder();
-      initializeDragAndDrop();
-      loadPlayerSelection();
-      loadWindowVisibility();
+      initializeApp();
     }
 
     const ctx = document.getElementById('questChart').getContext('2d');
