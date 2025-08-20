@@ -975,7 +975,9 @@ function generateAchievementsTable(achievementsData) {
     'swamp party': '#36A2EB',
     'clintonhill': '#FFCE56',
     'serasvasalas': '#4BC0C0',
-    'juozulis': '#9966FF'
+    'juozulis': '#9966FF',
+    'dedspirit': '#FF9F1C',
+    'scarycorpse': '#E71D36'
   };
 
   for (const achievement of achievementsData) {
@@ -1331,10 +1333,158 @@ async function generateStaticHTML() {
     const htmlContent = `<!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OSRS Tracker</title>
   <link rel="stylesheet" href="https://unpkg.com/98.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
+    /* Mobile viewport and text scaling */
+    @media (max-width: 768px) {
+      body {
+        font-size: 16px;
+        line-height: 1.4;
+      }
+
+      .container {
+        padding: 10px;
+        margin: 0;
+      }
+
+      .main-window {
+        margin: 10px 0;
+        width: 100%;
+        max-width: none;
+        min-width: 280px;
+      }
+
+      .window-body {
+        padding: 12px;
+        font-size: 16px;
+      }
+
+      .title-bar-text {
+        font-size: 16px;
+        font-weight: bold;
+      }
+
+      table {
+        font-size: 14px;
+      }
+
+      th, td {
+        padding: 8px 4px;
+        font-size: 14px;
+      }
+
+      .sunken-panel {
+        height: 300px !important;
+        overflow: auto;
+      }
+
+      /* Improve button and form element sizing */
+      button, input, select {
+        font-size: 16px;
+        padding: 8px;
+        min-height: 44px;
+      }
+
+      /* Player and window selection improvements */
+      .player-selection, .window-visibility {
+        margin-bottom: 15px;
+      }
+
+      .player-label, .window-label {
+        margin-bottom: 8px;
+        display: block;
+      }
+
+      .player-name, .window-name {
+        font-size: 16px;
+      }
+
+      /* Chart container improvements */
+      canvas {
+        max-width: 100%;
+        height: auto !important;
+      }
+
+      .window-body > div[style*="max-width: 800px"] {
+        max-width: 100% !important;
+        max-height: 400px !important;
+      }
+
+      /* Generated timestamp */
+      .generated-at {
+        font-size: 14px;
+        padding: 8px 12px;
+      }
+
+      /* Level cell improvements for mobile */
+      .level-cell {
+        font-size: 14px;
+        min-width: 40px;
+      }
+
+      /* Combat achievements table mobile improvements */
+      .combat-achievements-table th:first-child,
+      .combat-achievements-table td:first-child {
+        width: 40px;
+      }
+
+      .combat-achievements-table th:nth-child(2),
+      .combat-achievements-table td:nth-child(2) {
+        width: 25%;
+      }
+
+      /* Collection log table mobile improvements */
+      .collection-log-table th:first-child,
+      .collection-log-table td:first-child {
+        width: 40px;
+      }
+
+      .collection-log-table th:nth-child(2),
+      .collection-log-table td:nth-child(2) {
+        width: 30%;
+      }
+    }
+
+    @media (max-width: 480px) {
+      body {
+        font-size: 18px;
+      }
+
+      .window-body {
+        font-size: 18px;
+      }
+
+      table {
+        font-size: 16px;
+      }
+
+      th, td {
+        padding: 10px 6px;
+        font-size: 16px;
+      }
+
+      .title-bar-text {
+        font-size: 18px;
+      }
+
+      button, input, select {
+        font-size: 18px;
+        padding: 10px;
+      }
+
+      .player-name, .window-name {
+        font-size: 18px;
+      }
+
+      .level-cell {
+        font-size: 16px;
+      }
+    }
+
     /* Loading screen styles */
     .loading-screen {
       position: fixed;
@@ -2971,17 +3121,29 @@ async function generateStaticHTML() {
       type: 'line',
       data: ${JSON.stringify(chartData)},
       options: {
+        responsive: true,
         scales: {
           x: {
             title: {
               display: true,
               text: 'Date'
+            },
+            ticks: {
+              maxTicksLimit: window.innerWidth < 768 ? 6 : 10
             }
           },
           y: {
             title: {
               display: true,
               text: 'Quests Completed'
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            labels: {
+              usePointStyle: true,
+              boxWidth: window.innerWidth < 768 ? 12 : 15
             }
           }
         }
@@ -2993,17 +3155,29 @@ async function generateStaticHTML() {
       type: 'line',
       data: ${JSON.stringify(totalLevelChartData)},
       options: {
+        responsive: true,
         scales: {
           x: {
             title: {
               display: true,
               text: 'Date'
+            },
+            ticks: {
+              maxTicksLimit: window.innerWidth < 768 ? 6 : 10
             }
           },
           y: {
             title: {
               display: true,
               text: 'Total Level'
+            }
+          }
+        },
+        plugins: {
+          legend: {
+            labels: {
+              usePointStyle: true,
+              boxWidth: window.innerWidth < 768 ? 12 : 15
             }
           }
         }
@@ -3015,11 +3189,15 @@ async function generateStaticHTML() {
       type: 'line',
       data: ${JSON.stringify(skillLevelChartData)},
       options: {
+        responsive: true,
         scales: {
           x: {
             title: {
               display: true,
               text: 'Date'
+            },
+            ticks: {
+              maxTicksLimit: window.innerWidth < 768 ? 6 : 10
             }
           },
           y: {
@@ -3029,6 +3207,14 @@ async function generateStaticHTML() {
             },
             min: 1,
             max: 99
+          }
+        },
+        plugins: {
+          legend: {
+            labels: {
+              usePointStyle: true,
+              boxWidth: window.innerWidth < 768 ? 12 : 15
+            }
           }
         }
       }
