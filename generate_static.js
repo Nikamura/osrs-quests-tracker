@@ -356,8 +356,13 @@ function generateCombatAchievementsComparisonTable(comparisonData) {
     return "<p>No player data found to compare combat achievements.</p>";
   }
 
-  // Get all available achievements from the metadata
-  const allAchievements = Object.values(combatAchievementsData);
+  // Get all available achievements from the metadata and filter for completed ones
+  const allAchievements = Object.values(combatAchievementsData).filter(achievement => {
+    return players.some(player => {
+      const playerAchievements = playerCombatAchievements[player] || [];
+      return playerAchievements.includes(parseInt(achievement.taskId));
+    });
+  });
 
   // Sort achievements by tier and name
   const sortedAchievements = allAchievements.sort((a, b) => {
@@ -383,15 +388,6 @@ function generateCombatAchievementsComparisonTable(comparisonData) {
   });
 
   let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
-
-  // Add toggle control at the top
-  tableHtml += '<div class="combat-achievements-toggle" onclick="toggleCombatAchievementsCheckbox()">';
-  tableHtml += '<label style="display: flex; align-items: center; gap: 8px; font-weight: bold; cursor: pointer; width: 100%;">';
-  tableHtml += '<input type="checkbox" id="combatAchievementsShowAll" checked onchange="toggleCombatAchievementsView()" style="margin: 0; pointer-events: none;">';
-  tableHtml += '<span>Show all achievements (uncheck to show only completed)</span>';
-  tableHtml += '</label>';
-  tableHtml += '</div>';
-
   tableHtml += '<table class="interactive combat-achievements-table" style="width: 100%;">';
 
   // Header
@@ -1114,17 +1110,14 @@ async function generateCollectionLogComparisonTable(comparisonData) {
     return "<p>No player data found to compare collection logs.</p>";
   }
 
-  const allItems = Object.values(collectionLogData);
+  const allItems = Object.values(collectionLogData).filter(item => {
+    const itemId = item.itemId;
+    return players.some(player =>
+      playerCollectionLogs[player] && playerCollectionLogs[player].includes(parseInt(itemId))
+    );
+  });
 
   let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
-
-  // Add toggle control at the top
-  tableHtml += '<div class="collection-log-toggle" onclick="toggleCollectionLogCheckbox()">';
-  tableHtml += '<label style="display: flex; align-items: center; gap: 8px; font-weight: bold; cursor: pointer; width: 100%;">';
-  tableHtml += '<input type="checkbox" id="collectionLogShowAll" checked onchange="toggleCollectionLogView()" style="margin: 0; pointer-events: none;">';
-  tableHtml += '<span>Show all items (uncheck to show only completed)</span>';
-  tableHtml += '</label>';
-  tableHtml += '</div>';
 
   tableHtml += '<table class="interactive collection-log-table" style="width: 100%;">';
 
@@ -1154,8 +1147,6 @@ async function generateCollectionLogComparisonTable(comparisonData) {
       rowClass = 'collection-complete';
     } else if (playersWithItem.length > 0) {
       rowClass = 'collection-partial';
-    } else {
-      rowClass = 'collection-none';
     }
 
     tableHtml += `<tr class="${rowClass}">`;
@@ -1530,14 +1521,13 @@ async function generateStaticHTML() {
     }
     .collection-log-table thead th {
       position: sticky;
-      top: 36px; /* Position below the toggle control */
+      top: 0;
       background-color: #c0c0c0;
       z-index: 10;
       border-bottom: 2px solid #808080;
     }
     .collection-complete { background-color: #3a8e3a; color: white; font-weight: bold; }
     .collection-partial { background-color: #ffcc00; }
-    .collection-none { background-color: #cccccc; }
     .collection-has-item { background-color: #3a8e3a; color: white; font-weight: bold; }
     .collection-missing-item { background-color: #cccccc; }
     .collection-log-table .collection-log-total-row td {
@@ -1550,30 +1540,10 @@ async function generateStaticHTML() {
     }
     .combat-achievements-table thead th {
       position: sticky;
-      top: 36px; /* Position below the toggle control */
+      top: 0;
       background-color: #c0c0c0;
       z-index: 10;
       border-bottom: 2px solid #808080;
-    }
-    .combat-achievements-toggle {
-      padding: 5px 10px;
-      background-color: #c0c0c0;
-      border-bottom: 2px solid #808080;
-      position: sticky;
-      top: 0;
-      z-index: 15;
-      min-height: 24px;
-      display: flex;
-      align-items: center;
-      cursor: pointer;
-      user-select: none;
-      transition: background-color 0.1s ease;
-    }
-    .combat-achievements-toggle:hover {
-      background-color: #b0b0b0;
-    }
-    .combat-achievements-toggle:active {
-      background-color: #a0a0a0;
     }
     .combat-achievement-complete { background-color: #3a8e3a; color: white; font-weight: bold; }
     .combat-achievement-partial { background-color: inherit; }
@@ -1588,26 +1558,7 @@ async function generateStaticHTML() {
       border-top: 3px solid #000;
       z-index: 5;
     }
-    .collection-log-toggle {
-      padding: 5px 10px;
-      background-color: #c0c0c0;
-      border-bottom: 2px solid #808080;
-      position: sticky;
-      top: 0;
-      z-index: 15;
-      min-height: 24px;
-      display: flex;
-      align-items: center;
-      cursor: pointer;
-      user-select: none;
-      transition: background-color 0.1s ease;
-    }
-    .collection-log-toggle:hover {
-      background-color: #b0b0b0;
-    }
-    .collection-log-toggle:active {
-      background-color: #a0a0a0;
-    }
+
     .collection-complete { background-color: #3a8e3a; color: white; font-weight: bold; }
     .collection-partial { background-color: inherit; }
     .collection-none { background-color: inherit; }
@@ -2302,83 +2253,6 @@ async function generateStaticHTML() {
       updateCombatAchievementsRankings(table, selectedPlayers);
     }
 
-    function toggleCombatAchievementsView() {
-      const checkbox = document.getElementById('combatAchievementsShowAll');
-      const showAll = checkbox.checked;
-      const selectedPlayers = getSelectedPlayers();
-
-      // Find the combat achievements table
-      const windows = document.querySelectorAll('.window');
-      let table = null;
-      for (const window of windows) {
-        const titleText = window.querySelector('.title-bar-text');
-        if (titleText && titleText.textContent.includes('Combat Achievements')) {
-          table = window.querySelector('table');
-          break;
-        }
-      }
-      if (!table) return;
-
-      const bodyRows = table.querySelectorAll('tbody tr');
-
-      bodyRows.forEach(row => {
-        // Skip total row
-        if (row.classList.contains('combat-achievements-total-row')) {
-          return;
-        }
-
-        const cells = row.querySelectorAll('td');
-        if (cells.length < 3) return;
-
-        // Check if any selected player has this achievement
-        let anySelectedPlayerHasAchievement = false;
-        const playerCells = Array.from(cells).slice(3); // Skip tier, monster, and name columns
-
-        playerCells.forEach((cell, index) => {
-          const isVisible = cell.style.display !== 'none';
-          if (isVisible && cell.textContent.trim() === '✓') {
-            anySelectedPlayerHasAchievement = true;
-          }
-        });
-
-        // Show/hide row based on toggle state
-        if (showAll) {
-          // Show all achievements
-          row.style.display = '';
-        } else {
-          // Show only achievements that selected players have completed
-          if (anySelectedPlayerHasAchievement) {
-            row.style.display = '';
-          } else {
-            row.style.display = 'none';
-          }
-        }
-      });
-
-      // Save the toggle state to localStorage
-      localStorage.setItem('osrs-combat-achievements-show-all', showAll.toString());
-    }
-
-        function toggleCombatAchievementsCheckbox() {
-      const checkbox = document.getElementById('combatAchievementsShowAll');
-      if (checkbox) {
-        checkbox.checked = !checkbox.checked;
-        toggleCombatAchievementsView();
-      }
-    }
-
-    function loadCombatAchievementsToggleState() {
-      const saved = localStorage.getItem('osrs-combat-achievements-show-all');
-      const checkbox = document.getElementById('combatAchievementsShowAll');
-
-      if (saved !== null && checkbox) {
-        const showAll = saved === 'true';
-        checkbox.checked = showAll;
-        // Trigger the toggle function to apply the state
-        toggleCombatAchievementsView();
-      }
-    }
-
     function updateMusicTable(selectedPlayers) {
       const windows = document.querySelectorAll('.window');
       let table = null;
@@ -2462,8 +2336,8 @@ async function generateStaticHTML() {
             }
           });
 
-          // Hide the entire row if no selected player has this item
-          if (!anySelectedPlayerHasItem && selectedPlayerIndices.length > 0) {
+          // Hide the entire row if no selected player has this item and players are selected
+          if (!anySelectedPlayerHasItem && selectedPlayers.length > 0) {
             row.style.display = 'none';
           } else {
             row.style.display = '';
@@ -2532,21 +2406,11 @@ async function generateStaticHTML() {
             }
           });
 
-          // Check the toggle state
-          const showAllCheckbox = document.getElementById('combatAchievementsShowAll');
-          const showAll = showAllCheckbox ? showAllCheckbox.checked : true;
-
-          // Show/hide row based on toggle state and player selection
-          if (showAll) {
-            // Show all achievements
-            row.style.display = '';
+          // Hide the row if no selected player has the achievement
+          if (!anySelectedPlayerHasAchievement && selectedPlayers.length > 0) {
+            row.style.display = 'none';
           } else {
-            // Show only achievements that selected players have completed
-            if (anySelectedPlayerHasAchievement) {
-              row.style.display = '';
-            } else {
-              row.style.display = 'none';
-            }
+            row.style.display = '';
           }
         }
 
@@ -3075,8 +2939,6 @@ async function generateStaticHTML() {
       loadWindowOrder();
       loadPlayerSelection();
       loadWindowVisibility();
-      loadCombatAchievementsToggleState();
-      loadCollectionLogToggleState();
 
       // Initialize interactive features
       initializeDragAndDrop();
@@ -3171,83 +3033,6 @@ async function generateStaticHTML() {
         }
       }
     });
-
-    function toggleCollectionLogView() {
-      const checkbox = document.getElementById('collectionLogShowAll');
-      const showAll = checkbox.checked;
-      const selectedPlayers = getSelectedPlayers();
-
-      // Find the collection log table
-      const windows = document.querySelectorAll('.window');
-      let table = null;
-      for (const window of windows) {
-        const titleText = window.querySelector('.title-bar-text');
-        if (titleText && titleText.textContent.includes('Collection Log')) {
-          table = window.querySelector('table');
-          break;
-        }
-      }
-      if (!table) return;
-
-      const bodyRows = table.querySelectorAll('tbody tr');
-
-      bodyRows.forEach(row => {
-        // Skip total row
-        if (row.classList.contains('collection-log-total-row')) {
-          return;
-        }
-
-        const cells = row.querySelectorAll('td');
-        if (cells.length < 2) return;
-
-        // Check if any selected player has this item
-        let anySelectedPlayerHasItem = false;
-        const playerCells = Array.from(cells).slice(2); // Skip icon and name columns
-
-        playerCells.forEach((cell, index) => {
-          const isVisible = cell.style.display !== 'none';
-          if (isVisible && cell.textContent.trim() === '✓') {
-            anySelectedPlayerHasItem = true;
-          }
-        });
-
-        // Show/hide row based on toggle state
-        if (showAll) {
-          // Show all items
-          row.style.display = '';
-        } else {
-          // Show only items that selected players have completed
-          if (anySelectedPlayerHasItem) {
-            row.style.display = '';
-          } else {
-            row.style.display = 'none';
-          }
-        }
-      });
-
-      // Save the toggle state to localStorage
-      localStorage.setItem('osrs-collection-log-show-all', showAll.toString());
-    }
-
-    function toggleCollectionLogCheckbox() {
-      const checkbox = document.getElementById('collectionLogShowAll');
-      if (checkbox) {
-        checkbox.checked = !checkbox.checked;
-        toggleCollectionLogView();
-      }
-    }
-
-    function loadCollectionLogToggleState() {
-      const saved = localStorage.getItem('osrs-collection-log-show-all');
-      const checkbox = document.getElementById('collectionLogShowAll');
-
-      if (saved !== null && checkbox) {
-        const showAll = saved === 'true';
-        checkbox.checked = showAll;
-        // Trigger the toggle function to apply the state
-        toggleCollectionLogView();
-      }
-    }
   </script>
 </body>
 </html>`;
