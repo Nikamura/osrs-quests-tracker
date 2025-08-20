@@ -51,9 +51,12 @@ A comprehensive tool to track Old School RuneScape (OSRS) progress for a group o
 ```
 osrs-quest-tracker/
 ├── data_fetcher.js         # Fetches player data from RuneLite API
+├── fetch_collection_log.js # Fetches collection log data from OSRS Wiki
+├── fetch_combat_achievements.js # Fetches combat achievements data from OSRS Wiki
 ├── generate_static.js      # Generates static HTML with all data and features
 ├── server.js               # Express server to serve the web interface
 ├── cleanup_player_data.js  # Removes duplicate consecutive data files
+├── game_data/              # Stores static game data
 ├── player_data/            # Directory storing timestamped JSON files per player
 ├── public/                 # Generated static files (index.html)
 ├── package.json            # Project metadata and npm scripts
@@ -116,6 +119,8 @@ npm run cleanup
 - `npm run generate` - Generate static HTML interface
 - `npm start` - Start the web server
 - `npm run cleanup` - Remove duplicate data files
+- `npm run fetch-combat-achievements` - Fetch latest combat achievements data from the OSRS Wiki
+- `npm run fetch-collection-log` - Fetch latest collection log data from the OSRS Wiki
 
 ## Combat Achievements Feature
 
