@@ -980,6 +980,44 @@ async function generateCollectionLogComparisonTable(comparisonData, itemsDatabas
     tableHtml += '</tr>';
   }
 
+  // Add total items row
+  tableHtml += '<tr class="collection-log-total-row">';
+  tableHtml += '<td></td>';
+  tableHtml += '<td style="font-size: 1.1em;">Total Items</td>';
+
+  // Calculate total items for each player
+  const totalItems = players.map(player => ({
+    player,
+    total: playerCollectionLogs[player]?.length ?? 0
+  }));
+
+  // Sort by total (highest first) and assign rankings
+  const sortedTotals = [...totalItems].sort((a, b) => b.total - a.total);
+  const totalRankings = {};
+  let currentRank = 1;
+  for (let i = 0; i < sortedTotals.length; i++) {
+    const { player, total } = sortedTotals[i];
+    if (i > 0 && sortedTotals[i - 1].total > total) {
+      currentRank = i + 1;
+    }
+    totalRankings[player] = currentRank;
+  }
+
+  for (const player of players) {
+    const total = totalItems.find(t => t.player === player)?.total ?? 0;
+
+    let rankingClass = '';
+    if (total > 0) {
+      const rank = totalRankings[player];
+      if (rank === 1) rankingClass = ' rank-1st';
+      else if (rank === 2) rankingClass = ' rank-2nd';
+      else if (rank === 3) rankingClass = ' rank-3rd';
+    }
+
+    tableHtml += `<td class="level-cell${rankingClass}" data-player="${player}" data-total="${total}" style="font-size: 1.1em; text-align: center;">${total}</td>`;
+  }
+  tableHtml += '</tr>';
+
   tableHtml += '</tbody></table></div>';
 
   return tableHtml;
@@ -1205,6 +1243,14 @@ async function generateStaticHTML() {
     .collection-none { background-color: #cccccc; }
     .collection-has-item { background-color: #3a8e3a; color: white; font-weight: bold; }
     .collection-missing-item { background-color: #cccccc; }
+    .collection-log-table .collection-log-total-row td {
+      position: sticky;
+      bottom: 0;
+      background: #f0f0f0;
+      font-weight: bold;
+      border-top: 3px solid #000;
+      z-index: 5;
+    }
   </style>
 </head>
 <body style="background-color: #008080;">
@@ -1739,6 +1785,7 @@ async function generateStaticHTML() {
       if (!table) return;
 
       updateCollectionLogTableContent(table, selectedPlayers);
+      updateCollectionLogRankings(table, selectedPlayers);
     }
 
     function updateCollectionLogTableContent(table, selectedPlayers) {
@@ -1784,28 +1831,86 @@ async function generateStaticHTML() {
       bodyRows.forEach(row => {
         const cells = row.querySelectorAll('td');
 
-        // Check if any selected player has this item
-        let anySelectedPlayerHasItem = false;
-        selectedPlayerIndices.forEach(playerIndex => {
-          if (cells[playerIndex] && cells[playerIndex].textContent.trim() === '✓') {
-            anySelectedPlayerHasItem = true;
-          }
-        });
-
-        // Hide the entire row if no selected player has this item
-        if (!anySelectedPlayerHasItem && selectedPlayerIndices.length > 0) {
-          row.style.display = 'none';
-        } else {
-          row.style.display = '';
-
-          // Show/hide individual cells
-          cells.forEach((cell, index) => {
-            if (columnsToShow.includes(index)) {
-              cell.style.display = '';
-            } else {
-              cell.style.display = 'none';
+        if (!row.classList.contains('collection-log-total-row')) {
+          // Check if any selected player has this item
+          let anySelectedPlayerHasItem = false;
+          selectedPlayerIndices.forEach(playerIndex => {
+            if (cells[playerIndex] && cells[playerIndex].textContent.trim() === '✓') {
+              anySelectedPlayerHasItem = true;
             }
           });
+
+          // Hide the entire row if no selected player has this item
+          if (!anySelectedPlayerHasItem && selectedPlayerIndices.length > 0) {
+            row.style.display = 'none';
+          } else {
+            row.style.display = '';
+          }
+        }
+
+        // Show/hide individual cells
+        cells.forEach((cell, index) => {
+          if (columnsToShow.includes(index)) {
+            cell.style.display = '';
+          } else {
+            cell.style.display = 'none';
+          }
+        });
+      });
+    }
+
+    function updateCollectionLogRankings(table, selectedPlayers) {
+      // The total row is the last one in tbody
+      const totalRow = table.querySelector('tbody tr:last-child');
+      if (!totalRow || !totalRow.classList.contains('collection-log-total-row')) return;
+
+      const cells = totalRow.querySelectorAll('td');
+      if (cells.length < 3) return; // need at least icon, name, and one player
+
+      // Skip the first two cells (icon, Total Items)
+      const totalCells = Array.from(cells).slice(2);
+
+      // Get totals for selected players only
+      const selectedTotals = [];
+      totalCells.forEach(cell => {
+        const playerData = cell.dataset.player;
+        if (!playerData) return;
+        const total = parseInt(cell.dataset.total) || 0;
+
+        if (selectedPlayers.includes(playerData)) {
+          selectedTotals.push({
+            cell: cell,
+            player: playerData,
+            total: total,
+          });
+        }
+      });
+
+      // Sort by total (highest first) and assign rankings
+      const sortedTotals = [...selectedTotals].sort((a, b) => b.total - a.total);
+      const rankings = {};
+      let currentRank = 1;
+
+      for (let i = 0; i < sortedTotals.length; i++) {
+        const { player, total } = sortedTotals[i];
+        if (i > 0 && sortedTotals[i - 1].total > total) {
+          currentRank = i + 1;
+        }
+        rankings[player] = currentRank;
+      }
+
+      // Clear all ranking classes first
+      totalCells.forEach(cell => {
+        cell.classList.remove('rank-1st', 'rank-2nd', 'rank-3rd');
+      });
+
+      // Apply ranking classes to selected players only
+      selectedTotals.forEach(({ cell, player, total }) => {
+        if (total > 0) {
+          const rank = rankings[player];
+          if (rank === 1) cell.classList.add('rank-1st');
+          else if (rank === 2) cell.classList.add('rank-2nd');
+          else if (rank === 3) cell.classList.add('rank-3rd');
         }
       });
     }
