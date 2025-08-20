@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import https from "node:https";
 
 function getDisplayName(playerDir) {
   const nameMap = {
@@ -860,6 +861,134 @@ function generateAchievementsTable(achievementsData) {
   return tableHtml;
 }
 
+async function fetchItemsDatabase() {
+  return new Promise((resolve, reject) => {
+    const url = 'https://www.osrsbox.com/osrsbox-db/items-summary.json';
+
+    https.get(url, (response) => {
+      let data = '';
+
+      response.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      response.on('end', () => {
+        try {
+          const itemsData = JSON.parse(data);
+          resolve(itemsData);
+        } catch (error) {
+          console.error('Error parsing items database:', error);
+          resolve({});
+        }
+      });
+    }).on('error', (error) => {
+      console.error('Error fetching items database:', error);
+      resolve({});
+    });
+  });
+}
+
+function getCollectionLogComparisonData() {
+  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
+  const latestPlayerData = {};
+  const allCollectionLogItems = new Set();
+
+  for (const player of players) {
+    const playerDir = path.join("player_data", player);
+    const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
+    if (files.length === 0) continue;
+
+    const latestFile = files.sort().pop();
+    const filePath = path.join(playerDir, latestFile);
+    const data = JSON.parse(readFileSync(filePath, "utf-8"));
+
+    if (data.collection_log) {
+      latestPlayerData[player] = data.collection_log;
+      data.collection_log.forEach(itemId => allCollectionLogItems.add(itemId));
+    }
+  }
+
+  return {
+    players: Object.keys(latestPlayerData).sort(),
+    collectionLogItems: [...allCollectionLogItems].sort((a, b) => a - b),
+    playerCollectionLogs: latestPlayerData
+  };
+}
+
+async function generateCollectionLogComparisonTable(comparisonData, itemsDatabase) {
+  const { players, collectionLogItems, playerCollectionLogs } = comparisonData;
+  if (players.length === 0) {
+    return "<p>No player data found to compare collection logs.</p>";
+  }
+
+  if (collectionLogItems.length === 0) {
+    return "<p>No collection log items found.</p>";
+  }
+
+  let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
+  tableHtml += '<table class="interactive collection-log-table" style="width: 100%;">';
+
+  // Header
+  tableHtml += '<thead><tr>';
+  tableHtml += '<th style="width: 50px;">Icon</th>';
+  tableHtml += '<th>Item</th>';
+  tableHtml += '<th style="width: 200px;">Collection</th>';
+  for (const player of players) {
+    tableHtml += `<th style="width: 80px;">${getDisplayName(player)}</th>`;
+  }
+  tableHtml += '</tr></thead>';
+
+  // Body
+  tableHtml += '<tbody>';
+
+  for (const itemId of collectionLogItems) {
+    const item = itemsDatabase[itemId];
+    if (!item) continue; // Skip if item not found in database
+
+    // Calculate how many players have this item
+    const playersWithItem = players.filter(player =>
+      playerCollectionLogs[player] && playerCollectionLogs[player].includes(itemId)
+    );
+
+    // Row class based on completion
+    let rowClass = '';
+    if (playersWithItem.length === players.length) {
+      rowClass = 'collection-complete';
+    } else if (playersWithItem.length > 0) {
+      rowClass = 'collection-partial';
+    } else {
+      rowClass = 'collection-none';
+    }
+
+    tableHtml += `<tr class="${rowClass}">`;
+
+    // Item icon - using OSRS wiki format
+    const itemNameForUrl = item.name.replace(/\s+/g, '_').replace(/['"]/g, '');
+    const iconUrl = `https://oldschool.runescape.wiki/images/${encodeURIComponent(itemNameForUrl)}.png`;
+    tableHtml += `<td style="text-align: center;"><img src="${iconUrl}" alt="${item.name}" width="32" height="32" onerror="this.src='https://oldschool.runescape.wiki/images/Bank_filler.png'" style="image-rendering: pixelated;"></td>`;
+
+    // Item name
+    tableHtml += `<td><a href="https://oldschool.runescape.wiki/w/${encodeURIComponent(itemNameForUrl)}" target="_blank" style="text-decoration: none; color: inherit;">${item.name}</a></td>`;
+
+    // Collection (placeholder - would need additional data mapping)
+    tableHtml += '<td>Various</td>';
+
+    // Player columns
+    for (const player of players) {
+      const hasItem = playerCollectionLogs[player] && playerCollectionLogs[player].includes(itemId);
+      let statusClass = hasItem ? 'collection-has-item' : 'collection-missing-item';
+      let statusText = hasItem ? '✓' : '✗';
+      tableHtml += `<td class="${statusClass}" style="text-align: center;">${statusText}</td>`;
+    }
+
+    tableHtml += '</tr>';
+  }
+
+  tableHtml += '</tbody></table></div>';
+
+  return tableHtml;
+}
+
 function generatePlayerSelectionUI() {
   const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
   if (players.length === 0) {
@@ -890,7 +1019,7 @@ function generatePlayerSelectionUI() {
   return selectionHtml;
 }
 
-function generateStaticHTML() {
+async function generateStaticHTML() {
   if (!existsSync('public')) {
     mkdirSync('public');
   }
@@ -898,6 +1027,10 @@ function generateStaticHTML() {
   console.log('Generating static HTML...');
 
   try {
+    console.log('Fetching items database...');
+    const itemsDatabase = await fetchItemsDatabase();
+    console.log(`Loaded ${Object.keys(itemsDatabase).length} items from database`);
+
     const playerData = getPlayerData();
     const chartData = generateChartData(playerData);
     const totalLevelProgressData = getTotalLevelProgressData();
@@ -916,6 +1049,9 @@ function generateStaticHTML() {
 
     const musicTracksComparisonData = getMusicTracksComparisonData();
     const musicTracksTableHtml = generateMusicTracksComparisonTable(musicTracksComparisonData);
+
+    const collectionLogComparisonData = getCollectionLogComparisonData();
+    const collectionLogTableHtml = await generateCollectionLogComparisonTable(collectionLogComparisonData, itemsDatabase);
 
     const achievementsData = getAchievementsData();
     const achievementsTableHtml = generateAchievementsTable(achievementsData);
@@ -1061,6 +1197,18 @@ function generateStaticHTML() {
     .player-label {
       transition: all 0.2s ease;
     }
+    .collection-log-table thead th {
+      position: sticky;
+      top: 0;
+      background-color: #c0c0c0;
+      z-index: 10;
+      border-bottom: 2px solid #808080;
+    }
+    .collection-complete { background-color: #3a8e3a; color: white; font-weight: bold; }
+    .collection-partial { background-color: #ffcc00; }
+    .collection-none { background-color: #cccccc; }
+    .collection-has-item { background-color: #3a8e3a; color: white; font-weight: bold; }
+    .collection-missing-item { background-color: #cccccc; }
   </style>
 </head>
 <body style="background-color: #008080;">
@@ -1170,6 +1318,17 @@ function generateStaticHTML() {
     </div>
     <div class="window main-window">
       <div class="title-bar">
+        <div class="title-bar-text">Collection Log Comparison</div>
+        <div class="title-bar-controls">
+          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+        </div>
+      </div>
+      <div class="window-body">
+        ${collectionLogTableHtml}
+      </div>
+    </div>
+    <div class="window main-window">
+      <div class="title-bar">
         <div class="title-bar-text">Recent Achievements & Progress</div>
         <div class="title-bar-controls">
           <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
@@ -1226,6 +1385,7 @@ function generateStaticHTML() {
       updateLevelTable(selectedPlayers);
       updateDiaryTable(selectedPlayers);
       updateMusicTable(selectedPlayers);
+      updateCollectionLogTable(selectedPlayers);
       updateAchievementsTable(selectedPlayers);
 
       // Save selection state
@@ -1568,6 +1728,90 @@ function generateStaticHTML() {
       if (!table) return;
 
       updateTable(table, selectedPlayers, 'music');
+    }
+
+    function updateCollectionLogTable(selectedPlayers) {
+      const windows = document.querySelectorAll('.window');
+      let table = null;
+      for (const window of windows) {
+        const titleText = window.querySelector('.title-bar-text');
+        if (titleText && titleText.textContent.includes('Collection Log')) {
+          table = window.querySelector('table');
+          break;
+        }
+      }
+      if (!table) return;
+
+      updateCollectionLogTableContent(table, selectedPlayers);
+    }
+
+    function updateCollectionLogTableContent(table, selectedPlayers) {
+      const headerRow = table.querySelector('thead tr');
+      const bodyRows = table.querySelectorAll('tbody tr');
+
+      if (!headerRow) return;
+
+      // Get all header cells (skip first 3 cells: icon, item, collection)
+      const headerCells = headerRow.querySelectorAll('th');
+      const playerHeaders = Array.from(headerCells).slice(3); // All remaining columns are player columns
+
+      // Create mapping of column indices to show/hide
+      const columnsToShow = [0, 1, 2]; // Always show icon, item, collection columns
+      const displayToPlayer = {
+        'Martynas': 'anime irl',
+        'Petras': 'swamp party',
+        'Karolis': 'clintonhill',
+        'Mangirdas': 'serasvasalas',
+        'Minvydas': 'juozulis',
+        'Darius': 'scarycorpse',
+        'Egle': 'dedspirit'
+      };
+
+      // Track which player columns are selected
+      const selectedPlayerIndices = [];
+      playerHeaders.forEach((header, index) => {
+        const displayName = header.textContent;
+        const playerKey = displayToPlayer[displayName];
+
+        if (playerKey && selectedPlayers.includes(playerKey)) {
+          columnsToShow.push(index + 3); // +3 for icon, item, collection columns
+          selectedPlayerIndices.push(index + 3);
+          header.style.display = '';
+        } else {
+          header.style.display = 'none';
+        }
+      });
+
+
+
+      // Update body rows
+      bodyRows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+
+        // Check if any selected player has this item
+        let anySelectedPlayerHasItem = false;
+        selectedPlayerIndices.forEach(playerIndex => {
+          if (cells[playerIndex] && cells[playerIndex].textContent.trim() === '✓') {
+            anySelectedPlayerHasItem = true;
+          }
+        });
+
+        // Hide the entire row if no selected player has this item
+        if (!anySelectedPlayerHasItem && selectedPlayerIndices.length > 0) {
+          row.style.display = 'none';
+        } else {
+          row.style.display = '';
+
+          // Show/hide individual cells
+          cells.forEach((cell, index) => {
+            if (columnsToShow.includes(index)) {
+              cell.style.display = '';
+            } else {
+              cell.style.display = 'none';
+            }
+          });
+        }
+      });
     }
 
     function updateAchievementsTable(selectedPlayers) {
@@ -2050,4 +2294,7 @@ function generateStaticHTML() {
 }
 
 // Run the generator
-generateStaticHTML();
+generateStaticHTML().catch(error => {
+  console.error('Error in generateStaticHTML:', error);
+  process.exit(1);
+});

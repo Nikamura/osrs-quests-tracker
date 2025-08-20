@@ -29,6 +29,7 @@ A comprehensive tool to track Old School RuneScape (OSRS) progress for a group o
   - Skill levels with color-coded ranges and rankings
   - Achievement diary progress
   - Music track unlocks
+  - Collection log progress with item icons and completion percentages
 - **Recent Achievements**: Timeline of recent progress with player-specific colors
 - **Player Selection**: Filter views by selected players with persistent preferences
 - **State Synchronization**: Window positions and states sync across browser tabs
@@ -104,16 +105,31 @@ npm run cleanup
 - `npm start` - Start the web server
 - `npm run cleanup` - Remove duplicate data files
 
+## Collection Log Feature
+
+The collection log comparison table displays all items that players have obtained in their collection logs, similar to the [OSRS Wiki Collection Log Table](https://oldschool.runescape.wiki/w/Collection_log/Table). Key features include:
+
+- **Item Icons**: High-quality item icons sourced from the OSRS Wiki
+- **Item Information**: Item names with links to their respective wiki pages
+- **Player Progress**: Visual indicators showing which players have obtained each item
+- **Completion Percentages**: Real-time calculation of what percentage of selected players have each item
+- **Responsive Filtering**: Dynamically updates when players are selected/deselected
+- **Fallback Icons**: Graceful handling of missing item icons with fallback images
+
+The system fetches item metadata from the OSRSBox database to provide rich item information while using the official OSRS Wiki images for the best visual experience.
+
 ## Data Sources
 
 - **Primary API**: [RuneLite Player Data API](https://sync.runescape.wiki/runelite/player/{username}/STANDARD)
+- **Secondary API**: [OSRSBox Items Database](https://www.osrsbox.com/osrsbox-db/items-summary.json)
+- **Item Icons**: [OSRS Wiki](https://oldschool.runescape.wiki/)
 - **Data Types Collected**:
   - Quests (not started: 0, in progress: 1, completed: 2)
   - Skill levels (1-99+)
   - Achievement diaries (Easy, Medium, Hard, Elite completion status)
   - Music tracks (unlocked/locked boolean)
   - Combat achievements (count)
-  - Collection log items (count)
+  - Collection log items (item IDs array with detailed item information)
   - League tasks (count)
 
 ## Player Configuration
