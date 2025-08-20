@@ -145,14 +145,10 @@ The collection log comparison table displays all items that players have obtaine
 - **Player Progress**: Visual indicators showing which players have obtained each item
 - **Completion Percentages**: Real-time calculation of what percentage of selected players have each item
 - **Responsive Filtering**: Dynamically updates when players are selected/deselected
-- **Fallback Icons**: Graceful handling of missing item icons with fallback images
-
-The system fetches item metadata from the OSRSBox database to provide rich item information while using the official OSRS Wiki images for the best visual experience.
 
 ## Data Sources
 
 - **Primary API**: [RuneLite Player Data API](https://sync.runescape.wiki/runelite/player/{username}/STANDARD)
-- **Secondary API**: [OSRSBox Items Database](https://www.osrsbox.com/osrsbox-db/items-summary.json)
 - **Item Icons**: [OSRS Wiki](https://oldschool.runescape.wiki/)
 - **Data Types Collected**:
   - Quests (not started: 0, in progress: 1, completed: 2)
