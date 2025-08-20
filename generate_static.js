@@ -118,7 +118,7 @@ function generateLevelComparisonTable(comparisonData) {
   }
 
   let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
-  tableHtml += '<table class="interactive" style="width: 100%;">';
+  tableHtml += '<table class="interactive level-comparison-table" style="width: 100%;">';
 
   // Header
   tableHtml += '<thead><tr><th>Skill</th>';
@@ -133,16 +133,87 @@ function generateLevelComparisonTable(comparisonData) {
     tableHtml += '<tr>';
     tableHtml += `<td>${skill}</td>`;
 
+    // Get all levels for this skill to determine rankings
+    const skillLevels = players.map(player => ({
+      player,
+      level: playerLevels[player]?.[skill] ?? 0
+    }));
+
+    // Sort by level (highest first) and assign rankings
+    const sortedLevels = [...skillLevels].sort((a, b) => b.level - a.level);
+    const rankings = {};
+    let currentRank = 1;
+    for (let i = 0; i < sortedLevels.length; i++) {
+      const { player, level } = sortedLevels[i];
+      if (i > 0 && sortedLevels[i - 1].level > level) {
+        currentRank = i + 1;
+      }
+      rankings[player] = currentRank;
+    }
+
     for (const player of players) {
       const level = playerLevels[player]?.[skill] ?? 0;
       let levelClass = 'level-low';
       if (level >= 80) levelClass = 'level-high';
       else if (level >= 50) levelClass = 'level-medium';
 
-      tableHtml += `<td class="level-cell ${levelClass}">${level}</td>`;
+      // Add ranking class if level > 0
+      let rankingClass = '';
+      if (level > 0) {
+        const rank = rankings[player];
+        if (rank === 1) rankingClass = ' rank-1st';
+        else if (rank === 2) rankingClass = ' rank-2nd';
+        else if (rank === 3) rankingClass = ' rank-3rd';
+      }
+
+      tableHtml += `<td class="level-cell ${levelClass}${rankingClass}" data-player="${player}" data-skill="${skill}" data-level="${level}">${level}</td>`;
     }
     tableHtml += '</tr>';
   }
+
+  // Add total level row
+  tableHtml += '<tr style="border-top: 3px solid #000; background-color: #f0f0f0; font-weight: bold;">';
+  tableHtml += '<td style="font-weight: bold; font-size: 1.1em;">Total Level</td>';
+
+  // Calculate total levels for each player
+  const totalLevels = players.map(player => {
+    const total = skills.reduce((sum, skill) => {
+      return sum + (playerLevels[player]?.[skill] ?? 0);
+    }, 0);
+    return { player, total };
+  });
+
+  // Sort by total (highest first) and assign rankings
+  const sortedTotals = [...totalLevels].sort((a, b) => b.total - a.total);
+  const totalRankings = {};
+  let currentRank = 1;
+  for (let i = 0; i < sortedTotals.length; i++) {
+    const { player, total } = sortedTotals[i];
+    if (i > 0 && sortedTotals[i - 1].total > total) {
+      currentRank = i + 1;
+    }
+    totalRankings[player] = currentRank;
+  }
+
+  for (const player of players) {
+    const totalLevel = totalLevels.find(t => t.player === player)?.total ?? 0;
+    let levelClass = 'level-low';
+    if (totalLevel >= 1600) levelClass = 'level-high';
+    else if (totalLevel >= 1000) levelClass = 'level-medium';
+
+    // Add ranking class
+    let rankingClass = '';
+    if (totalLevel > 0) {
+      const rank = totalRankings[player];
+      if (rank === 1) rankingClass = ' rank-1st';
+      else if (rank === 2) rankingClass = ' rank-2nd';
+      else if (rank === 3) rankingClass = ' rank-3rd';
+    }
+
+    tableHtml += `<td class="level-cell ${levelClass}${rankingClass}" data-player="${player}" data-skill="Total Level" data-level="${totalLevel}" style="font-size: 1.1em;">${totalLevel}</td>`;
+  }
+  tableHtml += '</tr>';
+
   tableHtml += '</tbody></table></div>';
 
   return tableHtml;
@@ -734,6 +805,55 @@ function generateStaticHTML() {
     .level-high { color: #006600; }
     .level-medium { color: #cc6600; }
     .level-low { color: #cc0000; }
+    .rank-1st {
+      background: linear-gradient(135deg, #ffd700, #ffed4e) !important;
+      border: 2px solid #b8860b !important;
+      color: #000 !important;
+      font-weight: bold !important;
+      position: relative;
+    }
+    .rank-1st::before {
+      content: "🥇";
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      font-size: 12px;
+    }
+    .rank-2nd {
+      background: linear-gradient(135deg, #c0c0c0, #e8e8e8) !important;
+      border: 2px solid #a0a0a0 !important;
+      color: #000 !important;
+      font-weight: bold !important;
+      position: relative;
+    }
+    .rank-2nd::before {
+      content: "🥈";
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      font-size: 12px;
+    }
+    .rank-3rd {
+      background: linear-gradient(135deg, #cd7f32, #d4a574) !important;
+      border: 2px solid #8b5a2b !important;
+      color: #000 !important;
+      font-weight: bold !important;
+      position: relative;
+    }
+    .rank-3rd::before {
+      content: "🥉";
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      font-size: 12px;
+    }
+    .level-comparison-table thead th {
+      position: sticky;
+      top: 0;
+      background-color: #c0c0c0;
+      z-index: 10;
+      border-bottom: 2px solid #808080;
+    }
     .diary-complete { background-color: #3a8e3a; color: white; font-weight: bold; }
     .diary-partial { background-color: #ffcc00; }
     .diary-not-started { background-color: #cccccc; }
@@ -996,6 +1116,110 @@ function generateStaticHTML() {
       if (!table) return;
 
       updateTable(table, selectedPlayers, 'level');
+      updateLevelRankings(table, selectedPlayers);
+    }
+
+        function updateLevelRankings(table, selectedPlayers) {
+      const displayToPlayer = {
+        'Martynas': 'anime irl',
+        'Petras': 'swamp party',
+        'Karolis': 'clintonhill',
+        'Mangirdas': 'serasvasalas',
+        'Minvydas': 'juozulis',
+        'Darius': 'scarycorpse',
+        'Egle': 'dedspirit'
+      };
+
+      // Get all rows (skills)
+      const bodyRows = table.querySelectorAll('tbody tr');
+
+      bodyRows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length === 0) return;
+
+        // Skip the first cell (skill name)
+        const levelCells = Array.from(cells).slice(1);
+
+        // Check if this is the Total Level row
+        const firstCell = cells[0];
+        const isTotalLevelRow = firstCell && firstCell.textContent.trim() === 'Total Level';
+
+        // Get levels for selected players only
+        const selectedLevels = [];
+        levelCells.forEach((cell, index) => {
+          const playerData = cell.dataset.player;
+          const level = parseInt(cell.dataset.level) || 0;
+
+          if (playerData && selectedPlayers.includes(playerData)) {
+            selectedLevels.push({
+              cell: cell,
+              player: playerData,
+              level: level,
+              index: index
+            });
+          }
+        });
+
+        // For Total Level row, recalculate totals based on selected players
+        if (isTotalLevelRow) {
+          // Recalculate total levels for selected players only
+          selectedLevels.forEach(({ cell, player }) => {
+            // Get all skill rows (excluding total level row)
+            const skillRows = Array.from(bodyRows).filter(r => {
+              const firstCellText = r.querySelector('td')?.textContent?.trim();
+              return firstCellText && firstCellText !== 'Total Level';
+            });
+
+            let newTotal = 0;
+            skillRows.forEach(skillRow => {
+              const skillCells = skillRow.querySelectorAll('td');
+              const playerCell = Array.from(skillCells).find(c =>
+                c.dataset.player === player && skillRow.style.display !== 'none'
+              );
+              if (playerCell && playerCell.style.display !== 'none') {
+                newTotal += parseInt(playerCell.dataset.level) || 0;
+              }
+            });
+
+            // Update the cell's data and display
+            cell.dataset.level = newTotal.toString();
+            cell.textContent = newTotal.toString();
+          });
+
+          // Update selectedLevels array with new totals
+          selectedLevels.forEach(item => {
+            item.level = parseInt(item.cell.dataset.level) || 0;
+          });
+        }
+
+        // Sort by level (highest first) and assign rankings
+        const sortedLevels = [...selectedLevels].sort((a, b) => b.level - a.level);
+        const rankings = {};
+        let currentRank = 1;
+
+        for (let i = 0; i < sortedLevels.length; i++) {
+          const { player, level } = sortedLevels[i];
+          if (i > 0 && sortedLevels[i - 1].level > level) {
+            currentRank = i + 1;
+          }
+          rankings[player] = currentRank;
+        }
+
+        // Clear all ranking classes first
+        levelCells.forEach(cell => {
+          cell.classList.remove('rank-1st', 'rank-2nd', 'rank-3rd');
+        });
+
+        // Apply ranking classes to selected players only
+        selectedLevels.forEach(({ cell, player, level }) => {
+          if (level > 0) {
+            const rank = rankings[player];
+            if (rank === 1) cell.classList.add('rank-1st');
+            else if (rank === 2) cell.classList.add('rank-2nd');
+            else if (rank === 3) cell.classList.add('rank-3rd');
+          }
+        });
+      });
     }
 
     function updateDiaryTable(selectedPlayers) {
