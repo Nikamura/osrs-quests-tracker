@@ -23,6 +23,7 @@ A comprehensive tool to track Old School RuneScape (OSRS) progress for a group o
 - **Progress Charts**: Line charts showing progression over time:
   - Quest completion progress
   - Total level progression
+  - Individual skill level progression (with skill selector dropdown)
 - **Comparison Tables**: Side-by-side comparison of:
   - Quest completion status
   - Skill levels with color-coded ranges and rankings

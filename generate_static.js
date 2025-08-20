@@ -451,6 +451,42 @@ function getTotalLevelProgressData() {
   return playerData;
 }
 
+function getSkillLevelProgressData() {
+  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
+  const playerData = {};
+  const allSkills = new Set();
+
+  for (const player of players) {
+    const playerDir = path.join("player_data", player);
+    const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
+    playerData[player] = [];
+
+    for (const file of files) {
+      const filePath = path.join(playerDir, file);
+      const data = JSON.parse(readFileSync(filePath, "utf-8"));
+      const timestamp = new Date(file.split('_')[1].replace('.json', ''));
+
+      // Store all skill levels for this timestamp
+      let skillLevels = {};
+      if (data.levels) {
+        Object.keys(data.levels).forEach(skill => allSkills.add(skill));
+        skillLevels = { ...data.levels };
+      }
+
+      playerData[player].push({
+        timestamp,
+        skillLevels
+      });
+    }
+    playerData[player].sort((a, b) => a.timestamp - b.timestamp);
+  }
+
+  return {
+    playerData,
+    availableSkills: [...allSkills].sort()
+  };
+}
+
 function generateChartData(playerData) {
   const datasets = [];
   const labels = new Set();
@@ -520,6 +556,50 @@ function generateTotalLevelChartData(playerData) {
       });
       labels.add(formattedTimestamp);
       return { x: formattedTimestamp, y: d.totalLevel };
+    });
+
+    datasets.push({
+      label: getDisplayName(player),
+      data: formattedData,
+      borderColor: color,
+      backgroundColor: color + '33',
+      fill: false,
+    });
+  }
+
+  return {
+    labels: [...labels].sort(),
+    datasets
+  };
+}
+
+function generateSkillLevelChartData(playerData, selectedSkill) {
+  const datasets = [];
+  const labels = new Set();
+  const colors = [
+    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+    '#FF9F40', '#C9CBCF', '#E7E9ED', '#7C9989', '#B7D5D4'
+  ];
+  let colorIndex = 0;
+
+  for (const player in playerData) {
+    const data = playerData[player];
+    const color = colors[colorIndex % colors.length];
+    colorIndex++;
+
+    const formattedData = data.map(d => {
+      const formattedTimestamp = d.timestamp.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'Europe/Vilnius'
+      });
+      labels.add(formattedTimestamp);
+      const skillLevel = d.skillLevels[selectedSkill] || 1;
+      return { x: formattedTimestamp, y: skillLevel };
     });
 
     datasets.push({
@@ -822,6 +902,9 @@ function generateStaticHTML() {
     const chartData = generateChartData(playerData);
     const totalLevelProgressData = getTotalLevelProgressData();
     const totalLevelChartData = generateTotalLevelChartData(totalLevelProgressData);
+    const skillLevelProgressData = getSkillLevelProgressData();
+    const defaultSkill = skillLevelProgressData.availableSkills[0] || 'Attack';
+    const skillLevelChartData = generateSkillLevelChartData(skillLevelProgressData.playerData, defaultSkill);
     const questComparisonData = getQuestComparisonData();
     const questTableHtml = generateQuestComparisonTable(questComparisonData);
 
@@ -1022,6 +1105,27 @@ function generateStaticHTML() {
     </div>
     <div class="window main-window">
       <div class="title-bar">
+        <div class="title-bar-text">Skill Level Progress</div>
+        <div class="title-bar-controls">
+          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+        </div>
+      </div>
+      <div class="window-body">
+        <div style="margin-bottom: 15px;">
+          <label for="skillSelect">Select Skill: </label>
+          <select id="skillSelect" onchange="updateSkillChart()" style="margin-left: 10px; padding: 5px;">
+            ${skillLevelProgressData.availableSkills.map(skill =>
+      `<option value="${skill}" ${skill === defaultSkill ? 'selected' : ''}>${skill}</option>`
+    ).join('')}
+          </select>
+        </div>
+        <div style="max-width: 800px; max-height: 600px;">
+          <canvas id="skillLevelChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="window main-window">
+      <div class="title-bar">
         <div class="title-bar-text">Quest Comparison</div>
         <div class="title-bar-controls">
           <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
@@ -1080,8 +1184,11 @@ function generateStaticHTML() {
     // Store original data for filtering
     let originalChartData = ${JSON.stringify(chartData)};
     let originalTotalLevelChartData = ${JSON.stringify(totalLevelChartData)};
+    let originalSkillLevelProgressData = ${JSON.stringify(skillLevelProgressData)};
+    let originalSkillLevelChartData = ${JSON.stringify(skillLevelChartData)};
     let questChart = null;
     let totalLevelChart = null;
+    let skillLevelChart = null;
 
     // Player filtering functions
     function getSelectedPlayers() {
@@ -1112,6 +1219,7 @@ function generateStaticHTML() {
       // Update charts
       updateChart(selectedPlayers);
       updateTotalLevelChart(selectedPlayers);
+      updateSkillLevelChart(selectedPlayers);
 
       // Update all tables
       updateQuestTable(selectedPlayers);
@@ -1203,6 +1311,99 @@ function generateStaticHTML() {
 
       totalLevelChart.data.datasets = filteredDatasets;
       totalLevelChart.update();
+    }
+
+    function updateSkillLevelChart(selectedPlayers) {
+      if (!skillLevelChart) return;
+
+      // Get the currently selected skill
+      const skillSelect = document.getElementById('skillSelect');
+      const selectedSkill = skillSelect ? skillSelect.value : originalSkillLevelProgressData.availableSkills[0];
+
+      // Generate new chart data for the selected skill and players
+      const filteredPlayerData = {};
+      const displayToPlayer = {
+        'Martynas': 'anime irl',
+        'Petras': 'swamp party',
+        'Karolis': 'clintonhill',
+        'Mangirdas': 'serasvasalas',
+        'Minvydas': 'juozulis',
+        'Darius': 'scarycorpse',
+        'Egle': 'dedspirit'
+      };
+
+      // Filter player data to only include selected players
+      for (const [player, data] of Object.entries(originalSkillLevelProgressData.playerData)) {
+        if (selectedPlayers.includes(player)) {
+          filteredPlayerData[player] = data;
+        }
+      }
+
+      // Generate new chart data
+      const newChartData = generateSkillLevelChartDataJS(filteredPlayerData, selectedSkill);
+      skillLevelChart.data.datasets = newChartData.datasets;
+      skillLevelChart.update();
+    }
+
+    function updateSkillChart() {
+      const selectedPlayers = getSelectedPlayers();
+      updateSkillLevelChart(selectedPlayers);
+    }
+
+    // JavaScript version of generateSkillLevelChartData for client-side updates
+    function generateSkillLevelChartDataJS(playerData, selectedSkill) {
+      const datasets = [];
+      const labels = new Set();
+      const colors = [
+        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+        '#FF9F40', '#C9CBCF', '#E7E9ED', '#7C9989', '#B7D5D4'
+      ];
+      let colorIndex = 0;
+
+      const displayNames = {
+        'anime irl': 'Martynas',
+        'swamp party': 'Petras',
+        'clintonhill': 'Karolis',
+        'serasvasalas': 'Mangirdas',
+        'juozulis': 'Minvydas',
+        'scarycorpse': 'Darius',
+        'dedspirit': 'Egle'
+      };
+
+      for (const player in playerData) {
+        const data = playerData[player];
+        const color = colors[colorIndex % colors.length];
+        colorIndex++;
+
+        const formattedData = data.map(d => {
+          const timestamp = new Date(d.timestamp);
+          const formattedTimestamp = timestamp.toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+            timeZone: 'Europe/Vilnius'
+          });
+          labels.add(formattedTimestamp);
+          const skillLevel = d.skillLevels[selectedSkill] || 1;
+          return { x: formattedTimestamp, y: skillLevel };
+        });
+
+        datasets.push({
+          label: displayNames[player] || player,
+          data: formattedData,
+          borderColor: color,
+          backgroundColor: color + '33',
+          fill: false,
+        });
+      }
+
+      return {
+        labels: [...labels].sort(),
+        datasets
+      };
     }
 
     function updateQuestTable(selectedPlayers) {
@@ -1806,6 +2007,30 @@ function generateStaticHTML() {
               display: true,
               text: 'Total Level'
             }
+          }
+        }
+      }
+    });
+
+    const skillLevelCtx = document.getElementById('skillLevelChart').getContext('2d');
+    skillLevelChart = new Chart(skillLevelCtx, {
+      type: 'line',
+      data: ${JSON.stringify(skillLevelChartData)},
+      options: {
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: 'Date'
+            }
+          },
+          y: {
+            title: {
+              display: true,
+              text: 'Level'
+            },
+            min: 1,
+            max: 99
           }
         }
       }
