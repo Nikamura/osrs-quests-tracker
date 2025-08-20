@@ -876,17 +876,40 @@ function getAchievementsData() {
 
         // Check for combat achievement progress
         if (currentData.combat_achievements && previousData.combat_achievements) {
-          const currentCount = currentData.combat_achievements.length;
-          const previousCount = previousData.combat_achievements.length;
-          if (currentCount > previousCount) {
-            allAchievements.push({
-              player: player,
-              type: 'combat',
-              name: `Combat Achievement (${previousCount} → ${currentCount})`,
-              timestamp: currentTimestamp,
-              previousTimestamp: previousTimestamp,
-              displayName: getDisplayName(player)
+          const currentAchievements = new Set(currentData.combat_achievements);
+          const previousAchievements = new Set(previousData.combat_achievements);
+
+          // Find newly completed achievements
+          const newAchievements = [...currentAchievements].filter(id => !previousAchievements.has(id));
+
+          // Load combat achievements metadata
+          let combatAchievementsData = {};
+          try {
+            const combatAchievementsFile = readFileSync("game_data/combat_achievements.json", "utf-8");
+            const combatAchievements = JSON.parse(combatAchievementsFile);
+            combatAchievements.forEach(achievement => {
+              combatAchievementsData[achievement.taskId] = achievement;
             });
+          } catch (error) {
+            console.error('Error loading combat achievements data:', error);
+          }
+
+          // Add each new achievement as a separate entry
+          for (const achievementId of newAchievements) {
+            const achievementData = combatAchievementsData[achievementId];
+            if (achievementData) {
+              allAchievements.push({
+                player: player,
+                type: 'combat',
+                name: achievementData.name,
+                tierIconUrl: achievementData.tierIconUrl,
+                nameWikiLink: achievementData.nameWikiLink,
+                description: achievementData.description,
+                timestamp: currentTimestamp,
+                previousTimestamp: previousTimestamp,
+                displayName: getDisplayName(player)
+              });
+            }
           }
         }
 
@@ -1028,7 +1051,17 @@ function generateAchievementsTable(achievementsData) {
 
     tableHtml += `<tr style="${rowStyle}">`;
     tableHtml += `<td><strong style="color: ${playerColor};">${achievement.displayName}</strong></td>`;
-    tableHtml += `<td>${achievement.name}</td>`;
+
+    // Handle combat achievements with tier icons and links
+    if (achievement.type === 'combat' && achievement.tierIconUrl && achievement.nameWikiLink) {
+      tableHtml += `<td style="display: flex; align-items: center; gap: 8px;">`;
+      tableHtml += `<img src="${achievement.tierIconUrl}" alt="Tier" width="20" height="20" style="image-rendering: pixelated;">`;
+      tableHtml += `<a href="${achievement.nameWikiLink}" target="_blank" style="text-decoration: none; color: inherit;" title="${achievement.description || ''}">${achievement.name}</a>`;
+      tableHtml += `</td>`;
+    } else {
+      tableHtml += `<td>${achievement.name}</td>`;
+    }
+
     tableHtml += `<td>${achievement.type.charAt(0).toUpperCase() + achievement.type.slice(1)}</td>`;
     tableHtml += `<td>${dateWithTime}</td>`;
     tableHtml += '</tr>';
