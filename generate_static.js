@@ -1382,6 +1382,7 @@ async function generateStaticHTML() {
         <div class="title-bar-text">Quest Progress</div>
         <div class="title-bar-controls">
           <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+          <button aria-label="Close" onclick="closeWindow(this)"></button>
         </div>
       </div>
       <div class="window-body">
@@ -1395,6 +1396,7 @@ async function generateStaticHTML() {
         <div class="title-bar-text">Total Level Progress</div>
         <div class="title-bar-controls">
           <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+          <button aria-label="Close" onclick="closeWindow(this)"></button>
         </div>
       </div>
       <div class="window-body">
@@ -1408,6 +1410,7 @@ async function generateStaticHTML() {
         <div class="title-bar-text">Skill Level Progress</div>
         <div class="title-bar-controls">
           <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+          <button aria-label="Close" onclick="closeWindow(this)"></button>
         </div>
       </div>
       <div class="window-body">
@@ -1429,6 +1432,7 @@ async function generateStaticHTML() {
         <div class="title-bar-text">Quest Comparison</div>
         <div class="title-bar-controls">
           <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+          <button aria-label="Close" onclick="closeWindow(this)"></button>
         </div>
       </div>
       <div class="window-body">
@@ -1440,6 +1444,7 @@ async function generateStaticHTML() {
         <div class="title-bar-text">Level Comparison</div>
         <div class="title-bar-controls">
           <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+          <button aria-label="Close" onclick="closeWindow(this)"></button>
         </div>
       </div>
       <div class="window-body">
@@ -1451,6 +1456,7 @@ async function generateStaticHTML() {
         <div class="title-bar-text">Achievement Diaries Comparison</div>
         <div class="title-bar-controls">
           <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+          <button aria-label="Close" onclick="closeWindow(this)"></button>
         </div>
       </div>
       <div class="window-body">
@@ -1462,6 +1468,7 @@ async function generateStaticHTML() {
         <div class="title-bar-text">Music Tracks Comparison</div>
         <div class="title-bar-controls">
           <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+          <button aria-label="Close" onclick="closeWindow(this)"></button>
         </div>
       </div>
       <div class="window-body">
@@ -1473,6 +1480,7 @@ async function generateStaticHTML() {
         <div class="title-bar-text">Collection Log Comparison</div>
         <div class="title-bar-controls">
           <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+          <button aria-label="Close" onclick="closeWindow(this)"></button>
         </div>
       </div>
       <div class="window-body">
@@ -1484,6 +1492,7 @@ async function generateStaticHTML() {
         <div class="title-bar-text">Recent Achievements & Progress</div>
         <div class="title-bar-controls">
           <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+          <button aria-label="Close" onclick="closeWindow(this)"></button>
         </div>
       </div>
       <div class="window-body">
@@ -2366,6 +2375,24 @@ async function generateStaticHTML() {
         isMinimized: isMinimized,
         timestamp: Date.now()
       }));
+    }
+
+    function closeWindow(button) {
+      const windowElement = button.closest('.window');
+      const windowDataId = windowElement.dataset.windowId;
+
+      // Don't allow closing the Configuration window (it doesn't have data-window-id)
+      if (!windowDataId) {
+        return;
+      }
+
+      // Find and uncheck the corresponding checkbox in Configuration
+      const checkbox = document.querySelector('input[type="checkbox"][id="window-' + windowDataId + '"]');
+      if (checkbox) {
+        checkbox.checked = false;
+        // Trigger the existing window visibility update function
+        updateWindowVisibility();
+      }
     }
 
     // Initialize drag and drop functionality

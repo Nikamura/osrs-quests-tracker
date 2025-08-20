@@ -21,12 +21,15 @@ A comprehensive tool to track Old School RuneScape (OSRS) progress for a group o
 - **Data Cleanup**: Automated removal of duplicate consecutive data snapshots
 
 ### Web Interface
-- **Interactive Dashboard**: Windows 98-style UI with draggable, minimizable windows
+- **Interactive Dashboard**: Windows 98-style UI with draggable, minimizable, and closable windows
 - **Loading Screen**: Smooth loading experience with spinner animation that prevents content flashing
 - **Configuration Window**: Centralized control panel for:
   - Player selection/deselection with visual indicators
   - Window visibility toggles to show/hide specific data windows
   - Persistent settings that save across browser sessions
+- **Window Controls**: Each window (except Configuration) features:
+  - Minimize button to collapse/expand the window content
+  - Close button to hide the window (can be reopened via Configuration panel)
 - **Progress Charts**: Line charts showing progression over time:
   - Quest completion progress
   - Total level progression
