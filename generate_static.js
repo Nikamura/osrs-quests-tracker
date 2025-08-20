@@ -313,6 +313,183 @@ function generateAchievementDiaryComparisonTable(comparisonData) {
   return tableHtml;
 }
 
+function getCombatAchievementsComparisonData() {
+  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
+  const latestPlayerData = {};
+
+  // Load combat achievements metadata
+  let combatAchievementsData = {};
+  try {
+    const combatAchievementsFile = readFileSync("game_data/combat_achievements.json", "utf-8");
+    const combatAchievements = JSON.parse(combatAchievementsFile);
+    combatAchievements.forEach(achievement => {
+      combatAchievementsData[achievement.taskId] = achievement;
+    });
+  } catch (error) {
+    console.error('Error loading combat achievements data:', error);
+  }
+
+  for (const player of players) {
+    const playerDir = path.join("player_data", player);
+    const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
+    if (files.length === 0) continue;
+
+    const latestFile = files.sort().pop();
+    const filePath = path.join(playerDir, latestFile);
+    const data = JSON.parse(readFileSync(filePath, "utf-8"));
+
+    if (data.combat_achievements) {
+      latestPlayerData[player] = data.combat_achievements;
+    }
+  }
+
+  return {
+    players: Object.keys(latestPlayerData).sort(),
+    playerCombatAchievements: latestPlayerData,
+    combatAchievementsData: combatAchievementsData
+  };
+}
+
+function generateCombatAchievementsComparisonTable(comparisonData) {
+  const { players, playerCombatAchievements, combatAchievementsData } = comparisonData;
+  if (players.length === 0) {
+    return "<p>No player data found to compare combat achievements.</p>";
+  }
+
+  // Get all available achievements from the metadata
+  const allAchievements = Object.values(combatAchievementsData);
+
+  // Sort achievements by tier and name
+  const sortedAchievements = allAchievements.sort((a, b) => {
+    // First sort by tier (Easy, Medium, Hard, Elite, Master, Grandmaster)
+    const tierOrder = {
+      'Easy (1 pt)': 1,
+      'Medium (2 pts)': 2,
+      'Hard (3 pts)': 3,
+      'Elite (4 pts)': 4,
+      'Master (5 pts)': 5,
+      'Grandmaster (6 pts)': 6
+    };
+
+    const tierA = tierOrder[a.tier] || 999;
+    const tierB = tierOrder[b.tier] || 999;
+
+    if (tierA !== tierB) {
+      return tierA - tierB;
+    }
+
+    // Then sort by name
+    return a.name.localeCompare(b.name);
+  });
+
+  let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
+
+  // Add toggle control at the top
+  tableHtml += '<div class="combat-achievements-toggle" onclick="toggleCombatAchievementsCheckbox()">';
+  tableHtml += '<label style="display: flex; align-items: center; gap: 8px; font-weight: bold; cursor: pointer; width: 100%;">';
+  tableHtml += '<input type="checkbox" id="combatAchievementsShowAll" checked onchange="toggleCombatAchievementsView()" style="margin: 0; pointer-events: none;">';
+  tableHtml += '<span>Show all achievements (uncheck to show only completed)</span>';
+  tableHtml += '</label>';
+  tableHtml += '</div>';
+
+  tableHtml += '<table class="interactive combat-achievements-table" style="width: 100%;">';
+
+  // Header
+  tableHtml += '<thead><tr><th style="width: 50px;">Tier</th><th>Monster</th><th>Achievement</th>';
+  for (const player of players) {
+    tableHtml += `<th style="width: 80px;">${getDisplayName(player)}</th>`;
+  }
+  tableHtml += '</tr></thead>';
+
+  // Body
+  tableHtml += '<tbody>';
+
+  for (const achievement of sortedAchievements) {
+    const achievementId = achievement.taskId;
+    const statuses = players.map(player => {
+      const playerAchievements = playerCombatAchievements[player] || [];
+      return playerAchievements.includes(parseInt(achievementId));
+    });
+
+    let rowClass = '';
+    const completedCount = statuses.filter(s => s === true).length;
+    if (completedCount === players.length) {
+      rowClass = 'combat-achievement-complete';
+    } else if (completedCount > 0) {
+      rowClass = 'combat-achievement-partial';
+    } else {
+      rowClass = 'combat-achievement-none';
+    }
+
+    tableHtml += `<tr class="${rowClass}">`;
+
+    // Tier icon
+    tableHtml += `<td style="text-align: center;"><img src="${achievement.tierIconUrl}" alt="${achievement.tier}" width="24" height="24" style="image-rendering: pixelated;"></td>`;
+
+    // Monster name with link (if available)
+    if (achievement.monster && achievement.monster !== 'N/A' && achievement.monsterWikiLink) {
+      tableHtml += `<td><a href="${achievement.monsterWikiLink}" target="_blank" style="text-decoration: none; color: inherit;">${achievement.monster}</a></td>`;
+    } else {
+      tableHtml += `<td style="color: #666; font-style: italic;">${achievement.monster || 'Various'}</td>`;
+    }
+
+    // Achievement name with link
+    tableHtml += `<td><a href="${achievement.nameWikiLink}" target="_blank" style="text-decoration: none; color: inherit;" title="${achievement.description}">${achievement.name}</a></td>`;
+
+    // Player columns
+    for (const status of statuses) {
+      let statusClass = status ? 'combat-achievement-completed' : 'combat-achievement-not-completed';
+      let statusText = status ? '✓' : '✗';
+      tableHtml += `<td class="${statusClass}" style="text-align: center;">${statusText}</td>`;
+    }
+
+    tableHtml += '</tr>';
+  }
+
+  // Add total achievements row (sticky at bottom)
+  tableHtml += '<tr class="combat-achievements-total-row">';
+  tableHtml += '<td></td>';
+  tableHtml += '<td></td>';
+  tableHtml += '<td style="font-size: 1.1em;">Total Achievements</td>';
+
+  // Calculate total achievements for each player
+  const totalAchievements = players.map(player => ({
+    player,
+    total: playerCombatAchievements[player]?.length ?? 0
+  }));
+
+  // Sort by total (highest first) and assign rankings
+  const sortedTotals = [...totalAchievements].sort((a, b) => b.total - a.total);
+  const totalRankings = {};
+  let currentRank = 1;
+  for (let i = 0; i < sortedTotals.length; i++) {
+    const { player, total } = sortedTotals[i];
+    if (i > 0 && sortedTotals[i - 1].total > total) {
+      currentRank = i + 1;
+    }
+    totalRankings[player] = currentRank;
+  }
+
+  for (const player of players) {
+    const total = totalAchievements.find(t => t.player === player)?.total ?? 0;
+
+    let rankingClass = '';
+    if (total > 0) {
+      const rank = totalRankings[player];
+      if (rank === 1) rankingClass = ' rank-1st';
+      else if (rank === 2) rankingClass = ' rank-2nd';
+      else if (rank === 3) rankingClass = ' rank-3rd';
+    }
+
+    tableHtml += `<td class="level-cell${rankingClass}" data-player="${player}" data-total="${total}" style="font-size: 1.1em; text-align: center;">${total}</td>`;
+  }
+  tableHtml += '</tr>';
+
+  tableHtml += '</tbody></table></div>';
+
+  return tableHtml;
+}
+
 function getMusicTracksComparisonData() {
   const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
   const latestPlayerData = {};
@@ -1061,6 +1238,7 @@ function generateWindowVisibilityUI() {
     { id: 'quest-comparison', name: 'Quest Comparison', enabled: true },
     { id: 'level-comparison', name: 'Level Comparison', enabled: true },
     { id: 'achievement-diaries-comparison', name: 'Achievement Diaries Comparison', enabled: true },
+    { id: 'combat-achievements-comparison', name: 'Combat Achievements Comparison', enabled: true },
     { id: 'music-tracks-comparison', name: 'Music Tracks Comparison', enabled: true },
     { id: 'collection-log-comparison', name: 'Collection Log Comparison', enabled: true },
     { id: 'recent-achievements--progress', name: 'Recent Achievements & Progress', enabled: true }
@@ -1116,6 +1294,9 @@ async function generateStaticHTML() {
 
     const achievementDiaryComparisonData = getAchievementDiaryComparisonData();
     const achievementDiaryTableHtml = generateAchievementDiaryComparisonTable(achievementDiaryComparisonData);
+
+    const combatAchievementsComparisonData = getCombatAchievementsComparisonData();
+    const combatAchievementsTableHtml = generateCombatAchievementsComparisonTable(combatAchievementsComparisonData);
 
     const musicTracksComparisonData = getMusicTracksComparisonData();
     const musicTracksTableHtml = generateMusicTracksComparisonTable(musicTracksComparisonData);
@@ -1351,6 +1532,47 @@ async function generateStaticHTML() {
       border-top: 3px solid #000;
       z-index: 5;
     }
+    .combat-achievements-table thead th {
+      position: sticky;
+      top: 36px; /* Position below the toggle control */
+      background-color: #c0c0c0;
+      z-index: 10;
+      border-bottom: 2px solid #808080;
+    }
+    .combat-achievements-toggle {
+      padding: 5px 10px;
+      background-color: #c0c0c0;
+      border-bottom: 2px solid #808080;
+      position: sticky;
+      top: 0;
+      z-index: 15;
+      min-height: 24px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.1s ease;
+    }
+    .combat-achievements-toggle:hover {
+      background-color: #b0b0b0;
+    }
+    .combat-achievements-toggle:active {
+      background-color: #a0a0a0;
+    }
+    .combat-achievement-complete { background-color: #3a8e3a; color: white; font-weight: bold; }
+    .combat-achievement-partial { background-color: inherit; }
+    .combat-achievement-none { background-color: inherit; }
+    .combat-achievement-completed { background-color: #3a8e3a; color: white; font-weight: bold; }
+    .combat-achievement-not-completed { background-color: #cccccc; }
+    .combat-achievements-total-row td {
+      position: sticky;
+      bottom: 0;
+      background: #f0f0f0;
+      font-weight: bold;
+      border-top: 3px solid #000;
+      z-index: 5;
+    }
+
   </style>
 </head>
 <body class="loading" style="background-color: #008080;">
@@ -1461,6 +1683,18 @@ async function generateStaticHTML() {
       </div>
       <div class="window-body">
         ${achievementDiaryTableHtml}
+      </div>
+    </div>
+    <div class="window main-window" data-window-id="combat-achievements-comparison">
+      <div class="title-bar">
+        <div class="title-bar-text">Combat Achievements Comparison</div>
+        <div class="title-bar-controls">
+          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+          <button aria-label="Close" onclick="closeWindow(this)"></button>
+        </div>
+      </div>
+      <div class="window-body">
+        ${combatAchievementsTableHtml}
       </div>
     </div>
     <div class="window main-window" data-window-id="music-tracks-comparison">
@@ -1579,6 +1813,7 @@ async function generateStaticHTML() {
       updateQuestTable(selectedPlayers);
       updateLevelTable(selectedPlayers);
       updateDiaryTable(selectedPlayers);
+      updateCombatAchievementsTable(selectedPlayers);
       updateMusicTable(selectedPlayers);
       updateCollectionLogTable(selectedPlayers);
       updateAchievementsTable(selectedPlayers);
@@ -2010,6 +2245,99 @@ async function generateStaticHTML() {
       updateTable(table, selectedPlayers, 'diary');
     }
 
+    function updateCombatAchievementsTable(selectedPlayers) {
+      const windows = document.querySelectorAll('.window');
+      let table = null;
+      for (const window of windows) {
+        const titleText = window.querySelector('.title-bar-text');
+        if (titleText && titleText.textContent.includes('Combat Achievements')) {
+          table = window.querySelector('table');
+          break;
+        }
+      }
+      if (!table) return;
+
+      updateCombatAchievementsTableContent(table, selectedPlayers);
+      updateCombatAchievementsRankings(table, selectedPlayers);
+    }
+
+    function toggleCombatAchievementsView() {
+      const checkbox = document.getElementById('combatAchievementsShowAll');
+      const showAll = checkbox.checked;
+      const selectedPlayers = getSelectedPlayers();
+
+      // Find the combat achievements table
+      const windows = document.querySelectorAll('.window');
+      let table = null;
+      for (const window of windows) {
+        const titleText = window.querySelector('.title-bar-text');
+        if (titleText && titleText.textContent.includes('Combat Achievements')) {
+          table = window.querySelector('table');
+          break;
+        }
+      }
+      if (!table) return;
+
+      const bodyRows = table.querySelectorAll('tbody tr');
+
+      bodyRows.forEach(row => {
+        // Skip total row
+        if (row.classList.contains('combat-achievements-total-row')) {
+          return;
+        }
+
+        const cells = row.querySelectorAll('td');
+        if (cells.length < 3) return;
+
+        // Check if any selected player has this achievement
+        let anySelectedPlayerHasAchievement = false;
+        const playerCells = Array.from(cells).slice(3); // Skip tier, monster, and name columns
+
+        playerCells.forEach((cell, index) => {
+          const isVisible = cell.style.display !== 'none';
+          if (isVisible && cell.textContent.trim() === '✓') {
+            anySelectedPlayerHasAchievement = true;
+          }
+        });
+
+        // Show/hide row based on toggle state
+        if (showAll) {
+          // Show all achievements
+          row.style.display = '';
+        } else {
+          // Show only achievements that selected players have completed
+          if (anySelectedPlayerHasAchievement) {
+            row.style.display = '';
+          } else {
+            row.style.display = 'none';
+          }
+        }
+      });
+
+      // Save the toggle state to localStorage
+      localStorage.setItem('osrs-combat-achievements-show-all', showAll.toString());
+    }
+
+        function toggleCombatAchievementsCheckbox() {
+      const checkbox = document.getElementById('combatAchievementsShowAll');
+      if (checkbox) {
+        checkbox.checked = !checkbox.checked;
+        toggleCombatAchievementsView();
+      }
+    }
+
+    function loadCombatAchievementsToggleState() {
+      const saved = localStorage.getItem('osrs-combat-achievements-show-all');
+      const checkbox = document.getElementById('combatAchievementsShowAll');
+
+      if (saved !== null && checkbox) {
+        const showAll = saved === 'true';
+        checkbox.checked = showAll;
+        // Trigger the toggle function to apply the state
+        toggleCombatAchievementsView();
+      }
+    }
+
     function updateMusicTable(selectedPlayers) {
       const windows = document.querySelectorAll('.window');
       let table = null;
@@ -2109,6 +2437,142 @@ async function generateStaticHTML() {
             cell.style.display = 'none';
           }
         });
+      });
+    }
+
+    function updateCombatAchievementsTableContent(table, selectedPlayers) {
+      const headerRow = table.querySelector('thead tr');
+      const bodyRows = table.querySelectorAll('tbody tr');
+
+      if (!headerRow) return;
+
+      // Get all header cells (skip first 3 cells: tier icon, monster, achievement name)
+      const headerCells = headerRow.querySelectorAll('th');
+      const playerHeaders = Array.from(headerCells).slice(3); // All remaining columns are player columns
+
+      // Create mapping of column indices to show/hide
+      const columnsToShow = [0, 1, 2]; // Always show tier icon, monster, achievement name columns
+      const displayToPlayer = {
+        'Martynas': 'anime irl',
+        'Petras': 'swamp party',
+        'Karolis': 'clintonhill',
+        'Mangirdas': 'serasvasalas',
+        'Minvydas': 'juozulis',
+        'Darius': 'scarycorpse',
+        'Egle': 'dedspirit'
+      };
+
+      // Track which player columns are selected
+      const selectedPlayerIndices = [];
+      playerHeaders.forEach((header, index) => {
+        const displayName = header.textContent;
+        const playerKey = displayToPlayer[displayName];
+
+        if (playerKey && selectedPlayers.includes(playerKey)) {
+          columnsToShow.push(index + 3); // +3 for tier icon, monster, achievement name columns
+          selectedPlayerIndices.push(index + 3);
+          header.style.display = '';
+        } else {
+          header.style.display = 'none';
+        }
+      });
+
+      // Update body rows
+      bodyRows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+
+        // Skip total row from filtering logic
+        if (!row.classList.contains('combat-achievements-total-row')) {
+          // Check if any selected player has this achievement
+          let anySelectedPlayerHasAchievement = false;
+          selectedPlayerIndices.forEach(playerIndex => {
+            if (cells[playerIndex] && cells[playerIndex].textContent.trim() === '✓') {
+              anySelectedPlayerHasAchievement = true;
+            }
+          });
+
+          // Check the toggle state
+          const showAllCheckbox = document.getElementById('combatAchievementsShowAll');
+          const showAll = showAllCheckbox ? showAllCheckbox.checked : true;
+
+          // Show/hide row based on toggle state and player selection
+          if (showAll) {
+            // Show all achievements
+            row.style.display = '';
+          } else {
+            // Show only achievements that selected players have completed
+            if (anySelectedPlayerHasAchievement) {
+              row.style.display = '';
+            } else {
+              row.style.display = 'none';
+            }
+          }
+        }
+
+        // Show/hide individual cells
+        cells.forEach((cell, index) => {
+          if (columnsToShow.includes(index)) {
+            cell.style.display = '';
+          } else {
+            cell.style.display = 'none';
+          }
+        });
+      });
+    }
+
+    function updateCombatAchievementsRankings(table, selectedPlayers) {
+      // The total row is the last one in tbody
+      const totalRow = table.querySelector('tbody tr:last-child');
+      if (!totalRow || !totalRow.classList.contains('combat-achievements-total-row')) return;
+
+      const cells = totalRow.querySelectorAll('td');
+      if (cells.length < 4) return; // need at least tier, monster, name, and one player
+
+      // Skip the first three cells (tier, monster, Total Achievements)
+      const totalCells = Array.from(cells).slice(3);
+
+      // Get totals for selected players only
+      const selectedTotals = [];
+      totalCells.forEach(cell => {
+        const playerData = cell.dataset.player;
+        if (!playerData) return;
+        const total = parseInt(cell.dataset.total) || 0;
+
+        if (selectedPlayers.includes(playerData)) {
+          selectedTotals.push({
+            cell: cell,
+            player: playerData,
+            total: total,
+          });
+        }
+      });
+
+      // Sort by total (highest first) and assign rankings
+      const sortedTotals = [...selectedTotals].sort((a, b) => b.total - a.total);
+      const rankings = {};
+      let currentRank = 1;
+
+      for (let i = 0; i < sortedTotals.length; i++) {
+        const { player, total } = sortedTotals[i];
+        if (i > 0 && sortedTotals[i - 1].total > total) {
+          currentRank = i + 1;
+        }
+        rankings[player] = currentRank;
+      }
+
+      // Clear all ranking classes first
+      totalCells.forEach(cell => {
+        cell.classList.remove('rank-1st', 'rank-2nd', 'rank-3rd');
+      });
+
+      // Apply ranking classes to selected players only
+      selectedTotals.forEach(({ cell, player, total }) => {
+        if (total > 0) {
+          const rank = rankings[player];
+          if (rank === 1) cell.classList.add('rank-1st');
+          else if (rank === 2) cell.classList.add('rank-2nd');
+          else if (rank === 3) cell.classList.add('rank-3rd');
+        }
       });
     }
 
@@ -2570,6 +3034,7 @@ async function generateStaticHTML() {
       loadWindowOrder();
       loadPlayerSelection();
       loadWindowVisibility();
+      loadCombatAchievementsToggleState();
 
       // Initialize interactive features
       initializeDragAndDrop();

@@ -38,6 +38,7 @@ A comprehensive tool to track Old School RuneScape (OSRS) progress for a group o
   - Quest completion status
   - Skill levels with color-coded ranges and rankings
   - Achievement diary progress
+  - Combat achievements with tier icons and completion status
   - Music track unlocks
   - Collection log progress with item icons and completion percentages
 - **Recent Achievements**: Timeline of recent progress with player-specific colors
@@ -116,6 +117,20 @@ npm run cleanup
 - `npm start` - Start the web server
 - `npm run cleanup` - Remove duplicate data files
 
+## Combat Achievements Feature
+
+The combat achievements comparison table displays all combat achievements that players have completed, organized by tier difficulty. Key features include:
+
+- **Tier Organization**: Achievements grouped by difficulty (Easy, Medium, Hard, Elite, Master, Grandmaster)
+- **Tier Icons**: Visual tier indicators showing achievement difficulty level
+- **Achievement Information**: Achievement names with links to their respective wiki pages and tooltips showing descriptions
+- **Player Progress**: Visual indicators showing which players have completed each achievement
+- **Total Count**: Sticky bottom row showing total achievements completed with top 3 rankings
+- **Responsive Filtering**: Dynamically updates when players are selected/deselected, hiding achievements no selected player has completed
+- **Rich Metadata**: Achievement details sourced from the comprehensive combat achievements database
+
+The system uses the complete combat achievements metadata from `game_data/combat_achievements.json` to provide detailed information about each achievement including descriptions, types, and difficulty tiers.
+
 ## Collection Log Feature
 
 The collection log comparison table displays all items that players have obtained in their collection logs, similar to the [OSRS Wiki Collection Log Table](https://oldschool.runescape.wiki/w/Collection_log/Table). Key features include:
@@ -139,7 +154,7 @@ The system fetches item metadata from the OSRSBox database to provide rich item 
   - Skill levels (1-99+)
   - Achievement diaries (Easy, Medium, Hard, Elite completion status)
   - Music tracks (unlocked/locked boolean)
-  - Combat achievements (count)
+  - Combat achievements (task IDs array with detailed achievement metadata)
   - Collection log items (item IDs array with detailed item information)
   - League tasks (count)
 
