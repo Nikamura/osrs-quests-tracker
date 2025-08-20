@@ -1,4 +1,4 @@
-# OSRS Quest Tracker
+# OSRS Tracker
 
 ## Overview
 
@@ -20,10 +20,12 @@ A comprehensive tool to track Old School RuneScape (OSRS) progress for a group o
 
 ### Web Interface
 - **Interactive Dashboard**: Windows 98-style UI with draggable, minimizable windows
-- **Quest Progress Chart**: Line chart showing quest completion over time
+- **Progress Charts**: Line charts showing progression over time:
+  - Quest completion progress
+  - Total level progression
 - **Comparison Tables**: Side-by-side comparison of:
   - Quest completion status
-  - Skill levels with color-coded ranges
+  - Skill levels with color-coded ranges and rankings
   - Achievement diary progress
   - Music track unlocks
 - **Recent Achievements**: Timeline of recent progress with player-specific colors

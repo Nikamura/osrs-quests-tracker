@@ -420,6 +420,37 @@ function getPlayerData() {
   return playerData;
 }
 
+function getTotalLevelProgressData() {
+  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
+  const playerData = {};
+
+  for (const player of players) {
+    const playerDir = path.join("player_data", player);
+    const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
+    playerData[player] = [];
+
+    for (const file of files) {
+      const filePath = path.join(playerDir, file);
+      const data = JSON.parse(readFileSync(filePath, "utf-8"));
+      const timestamp = new Date(file.split('_')[1].replace('.json', ''));
+
+      // Calculate total level
+      let totalLevel = 0;
+      if (data.levels) {
+        totalLevel = Object.values(data.levels).reduce((sum, level) => sum + (level || 0), 0);
+      }
+
+      playerData[player].push({
+        timestamp,
+        totalLevel
+      });
+    }
+    playerData[player].sort((a, b) => a.timestamp - b.timestamp);
+  }
+
+  return playerData;
+}
+
 function generateChartData(playerData) {
   const datasets = [];
   const labels = new Set();
@@ -446,6 +477,49 @@ function generateChartData(playerData) {
       });
       labels.add(formattedTimestamp);
       return { x: formattedTimestamp, y: d.completedQuests };
+    });
+
+    datasets.push({
+      label: getDisplayName(player),
+      data: formattedData,
+      borderColor: color,
+      backgroundColor: color + '33',
+      fill: false,
+    });
+  }
+
+  return {
+    labels: [...labels].sort(),
+    datasets
+  };
+}
+
+function generateTotalLevelChartData(playerData) {
+  const datasets = [];
+  const labels = new Set();
+  const colors = [
+    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+    '#FF9F40', '#C9CBCF', '#E7E9ED', '#7C9989', '#B7D5D4'
+  ];
+  let colorIndex = 0;
+
+  for (const player in playerData) {
+    const data = playerData[player];
+    const color = colors[colorIndex % colors.length];
+    colorIndex++;
+
+    const formattedData = data.map(d => {
+      const formattedTimestamp = d.timestamp.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'Europe/Vilnius'
+      });
+      labels.add(formattedTimestamp);
+      return { x: formattedTimestamp, y: d.totalLevel };
     });
 
     datasets.push({
@@ -746,6 +820,8 @@ function generateStaticHTML() {
   try {
     const playerData = getPlayerData();
     const chartData = generateChartData(playerData);
+    const totalLevelProgressData = getTotalLevelProgressData();
+    const totalLevelChartData = generateTotalLevelChartData(totalLevelProgressData);
     const questComparisonData = getQuestComparisonData();
     const questTableHtml = generateQuestComparisonTable(questComparisonData);
 
@@ -777,7 +853,7 @@ function generateStaticHTML() {
     const htmlContent = `<!DOCTYPE html>
 <html>
 <head>
-  <title>OSRS Quest Tracker</title>
+  <title>OSRS Tracker</title>
   <link rel="stylesheet" href="https://unpkg.com/98.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
@@ -920,7 +996,7 @@ function generateStaticHTML() {
     </div>
     <div class="window main-window">
       <div class="title-bar">
-        <div class="title-bar-text">OSRS Quest Progress</div>
+        <div class="title-bar-text">Quest Progress</div>
         <div class="title-bar-controls">
           <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
         </div>
@@ -928,6 +1004,19 @@ function generateStaticHTML() {
       <div class="window-body">
         <div style="max-width: 800px; max-height: 600px;">
           <canvas id="questChart"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="window main-window">
+      <div class="title-bar">
+        <div class="title-bar-text">Total Level Progress</div>
+        <div class="title-bar-controls">
+          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+        </div>
+      </div>
+      <div class="window-body">
+        <div style="max-width: 800px; max-height: 600px;">
+          <canvas id="totalLevelChart"></canvas>
         </div>
       </div>
     </div>
@@ -990,7 +1079,9 @@ function generateStaticHTML() {
   <script>
     // Store original data for filtering
     let originalChartData = ${JSON.stringify(chartData)};
+    let originalTotalLevelChartData = ${JSON.stringify(totalLevelChartData)};
     let questChart = null;
+    let totalLevelChart = null;
 
     // Player filtering functions
     function getSelectedPlayers() {
@@ -1018,8 +1109,9 @@ function generateStaticHTML() {
       // Update visual indicators
       updatePlayerVisualIndicators();
 
-      // Update chart
+      // Update charts
       updateChart(selectedPlayers);
+      updateTotalLevelChart(selectedPlayers);
 
       // Update all tables
       updateQuestTable(selectedPlayers);
@@ -1086,6 +1178,31 @@ function generateStaticHTML() {
 
       questChart.data.datasets = filteredDatasets;
       questChart.update();
+    }
+
+    function updateTotalLevelChart(selectedPlayers) {
+      if (!totalLevelChart) return;
+
+      // Create mapping objects
+      const displayToPlayer = {
+        'Martynas': 'anime irl',
+        'Petras': 'swamp party',
+        'Karolis': 'clintonhill',
+        'Mangirdas': 'serasvasalas',
+        'Minvydas': 'juozulis',
+        'Darius': 'scarycorpse',
+        'Egle': 'dedspirit'
+      };
+
+      // Filter datasets to only show selected players
+      const filteredDatasets = originalTotalLevelChartData.datasets.filter(dataset => {
+        // Find the player key that matches this dataset label
+        const playerKey = displayToPlayer[dataset.label];
+        return playerKey && selectedPlayers.includes(playerKey);
+      });
+
+      totalLevelChart.data.datasets = filteredDatasets;
+      totalLevelChart.update();
     }
 
     function updateQuestTable(selectedPlayers) {
@@ -1666,6 +1783,28 @@ function generateStaticHTML() {
             title: {
               display: true,
               text: 'Quests Completed'
+            }
+          }
+        }
+      }
+    });
+
+    const totalLevelCtx = document.getElementById('totalLevelChart').getContext('2d');
+    totalLevelChart = new Chart(totalLevelCtx, {
+      type: 'line',
+      data: ${JSON.stringify(totalLevelChartData)},
+      options: {
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: 'Date'
+            }
+          },
+          y: {
+            title: {
+              display: true,
+              text: 'Total Level'
             }
           }
         }
