@@ -1071,37 +1071,21 @@ function generateAchievementsTable(achievementsData) {
   return tableHtml;
 }
 
-async function fetchItemsDatabase() {
-  return new Promise((resolve, reject) => {
-    const url = 'https://www.osrsbox.com/osrsbox-db/items-summary.json';
-
-    https.get(url, (response) => {
-      let data = '';
-
-      response.on('data', (chunk) => {
-        data += chunk;
-      });
-
-      response.on('end', () => {
-        try {
-          const itemsData = JSON.parse(data);
-          resolve(itemsData);
-        } catch (error) {
-          console.error('Error parsing items database:', error);
-          resolve({});
-        }
-      });
-    }).on('error', (error) => {
-      console.error('Error fetching items database:', error);
-      resolve({});
-    });
-  });
-}
-
 function getCollectionLogComparisonData() {
   const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
   const latestPlayerData = {};
-  const allCollectionLogItems = new Set();
+
+  // Load collection log metadata
+  let collectionLogData = {};
+  try {
+    const collectionLogFile = readFileSync("game_data/collection_log.json", "utf-8");
+    const collectionLogItems = JSON.parse(collectionLogFile);
+    collectionLogItems.forEach(item => {
+      collectionLogData[item.itemId] = item;
+    });
+  } catch (error) {
+    console.error('Error loading collection log data:', error);
+  }
 
   for (const player of players) {
     const playerDir = path.join("player_data", player);
@@ -1114,28 +1098,34 @@ function getCollectionLogComparisonData() {
 
     if (data.collection_log) {
       latestPlayerData[player] = data.collection_log;
-      data.collection_log.forEach(itemId => allCollectionLogItems.add(itemId));
     }
   }
 
   return {
     players: Object.keys(latestPlayerData).sort(),
-    collectionLogItems: [...allCollectionLogItems].sort((a, b) => a - b),
-    playerCollectionLogs: latestPlayerData
+    playerCollectionLogs: latestPlayerData,
+    collectionLogData: collectionLogData,
   };
 }
 
-async function generateCollectionLogComparisonTable(comparisonData, itemsDatabase) {
-  const { players, collectionLogItems, playerCollectionLogs } = comparisonData;
+async function generateCollectionLogComparisonTable(comparisonData) {
+  const { players, playerCollectionLogs, collectionLogData } = comparisonData;
   if (players.length === 0) {
     return "<p>No player data found to compare collection logs.</p>";
   }
 
-  if (collectionLogItems.length === 0) {
-    return "<p>No collection log items found.</p>";
-  }
+  const allItems = Object.values(collectionLogData);
 
   let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
+
+  // Add toggle control at the top
+  tableHtml += '<div class="collection-log-toggle" onclick="toggleCollectionLogCheckbox()">';
+  tableHtml += '<label style="display: flex; align-items: center; gap: 8px; font-weight: bold; cursor: pointer; width: 100%;">';
+  tableHtml += '<input type="checkbox" id="collectionLogShowAll" checked onchange="toggleCollectionLogView()" style="margin: 0; pointer-events: none;">';
+  tableHtml += '<span>Show all items (uncheck to show only completed)</span>';
+  tableHtml += '</label>';
+  tableHtml += '</div>';
+
   tableHtml += '<table class="interactive collection-log-table" style="width: 100%;">';
 
   // Header
@@ -1150,13 +1140,12 @@ async function generateCollectionLogComparisonTable(comparisonData, itemsDatabas
   // Body
   tableHtml += '<tbody>';
 
-  for (const itemId of collectionLogItems) {
-    const item = itemsDatabase[itemId];
-    if (!item) continue; // Skip if item not found in database
+  for (const item of allItems) {
+    const itemId = item.itemId;
 
     // Calculate how many players have this item
     const playersWithItem = players.filter(player =>
-      playerCollectionLogs[player] && playerCollectionLogs[player].includes(itemId)
+      playerCollectionLogs[player] && playerCollectionLogs[player].includes(parseInt(itemId))
     );
 
     // Row class based on completion
@@ -1171,17 +1160,15 @@ async function generateCollectionLogComparisonTable(comparisonData, itemsDatabas
 
     tableHtml += `<tr class="${rowClass}">`;
 
-    // Item icon - using OSRS wiki format
-    const itemNameForUrl = item.name.replace(/\s+/g, '_').replace(/['"]/g, '');
-    const iconUrl = `https://oldschool.runescape.wiki/images/${encodeURIComponent(itemNameForUrl)}.png`;
-    tableHtml += `<td style="text-align: center;"><img src="${iconUrl}" alt="${item.name}" width="32" height="32" onerror="this.src='https://oldschool.runescape.wiki/images/Bank_filler.png'" style="image-rendering: pixelated;"></td>`;
+    // Item icon
+    tableHtml += `<td style="text-align: center;"><img src="${item.itemIcon}" alt="${item.itemName}" width="32" height="32" onerror="this.src='https://oldschool.runescape.wiki/images/Bank_filler.png'" style="image-rendering: pixelated;"></td>`;
 
     // Item name
-    tableHtml += `<td><a href="https://oldschool.runescape.wiki/w/${encodeURIComponent(itemNameForUrl)}" target="_blank" style="text-decoration: none; color: inherit;">${item.name}</a></td>`;
+    tableHtml += `<td><a href="${item.itemLink}" target="_blank" style="text-decoration: none; color: inherit;">${item.itemName}</a></td>`;
 
     // Player columns
     for (const player of players) {
-      const hasItem = playerCollectionLogs[player] && playerCollectionLogs[player].includes(itemId);
+      const hasItem = playerCollectionLogs[player] && playerCollectionLogs[player].includes(parseInt(itemId));
       let statusClass = hasItem ? 'collection-has-item' : 'collection-missing-item';
       let statusText = hasItem ? '✓' : '✗';
       tableHtml += `<td class="${statusClass}" style="text-align: center;">${statusText}</td>`;
@@ -1308,10 +1295,6 @@ async function generateStaticHTML() {
   console.log('Generating static HTML...');
 
   try {
-    console.log('Fetching items database...');
-    const itemsDatabase = await fetchItemsDatabase();
-    console.log(`Loaded ${Object.keys(itemsDatabase).length} items from database`);
-
     const playerData = getPlayerData();
     const chartData = generateChartData(playerData);
     const totalLevelProgressData = getTotalLevelProgressData();
@@ -1335,7 +1318,7 @@ async function generateStaticHTML() {
     const musicTracksTableHtml = generateMusicTracksComparisonTable(musicTracksComparisonData);
 
     const collectionLogComparisonData = getCollectionLogComparisonData();
-    const collectionLogTableHtml = await generateCollectionLogComparisonTable(collectionLogComparisonData, itemsDatabase);
+    const collectionLogTableHtml = await generateCollectionLogComparisonTable(collectionLogComparisonData);
 
     const achievementsData = getAchievementsData();
     const achievementsTableHtml = generateAchievementsTable(achievementsData);
@@ -1547,7 +1530,7 @@ async function generateStaticHTML() {
     }
     .collection-log-table thead th {
       position: sticky;
-      top: 0;
+      top: 36px; /* Position below the toggle control */
       background-color: #c0c0c0;
       z-index: 10;
       border-bottom: 2px solid #808080;
@@ -1605,6 +1588,31 @@ async function generateStaticHTML() {
       border-top: 3px solid #000;
       z-index: 5;
     }
+    .collection-log-toggle {
+      padding: 5px 10px;
+      background-color: #c0c0c0;
+      border-bottom: 2px solid #808080;
+      position: sticky;
+      top: 0;
+      z-index: 15;
+      min-height: 24px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.1s ease;
+    }
+    .collection-log-toggle:hover {
+      background-color: #b0b0b0;
+    }
+    .collection-log-toggle:active {
+      background-color: #a0a0a0;
+    }
+    .collection-complete { background-color: #3a8e3a; color: white; font-weight: bold; }
+    .collection-partial { background-color: inherit; }
+    .collection-none { background-color: inherit; }
+    .collection-has-item { background-color: #3a8e3a; color: white; font-weight: bold; }
+    .collection-missing-item { background-color: #cccccc; }
 
   </style>
 </head>
@@ -3068,6 +3076,7 @@ async function generateStaticHTML() {
       loadPlayerSelection();
       loadWindowVisibility();
       loadCombatAchievementsToggleState();
+      loadCollectionLogToggleState();
 
       // Initialize interactive features
       initializeDragAndDrop();
@@ -3162,6 +3171,83 @@ async function generateStaticHTML() {
         }
       }
     });
+
+    function toggleCollectionLogView() {
+      const checkbox = document.getElementById('collectionLogShowAll');
+      const showAll = checkbox.checked;
+      const selectedPlayers = getSelectedPlayers();
+
+      // Find the collection log table
+      const windows = document.querySelectorAll('.window');
+      let table = null;
+      for (const window of windows) {
+        const titleText = window.querySelector('.title-bar-text');
+        if (titleText && titleText.textContent.includes('Collection Log')) {
+          table = window.querySelector('table');
+          break;
+        }
+      }
+      if (!table) return;
+
+      const bodyRows = table.querySelectorAll('tbody tr');
+
+      bodyRows.forEach(row => {
+        // Skip total row
+        if (row.classList.contains('collection-log-total-row')) {
+          return;
+        }
+
+        const cells = row.querySelectorAll('td');
+        if (cells.length < 2) return;
+
+        // Check if any selected player has this item
+        let anySelectedPlayerHasItem = false;
+        const playerCells = Array.from(cells).slice(2); // Skip icon and name columns
+
+        playerCells.forEach((cell, index) => {
+          const isVisible = cell.style.display !== 'none';
+          if (isVisible && cell.textContent.trim() === '✓') {
+            anySelectedPlayerHasItem = true;
+          }
+        });
+
+        // Show/hide row based on toggle state
+        if (showAll) {
+          // Show all items
+          row.style.display = '';
+        } else {
+          // Show only items that selected players have completed
+          if (anySelectedPlayerHasItem) {
+            row.style.display = '';
+          } else {
+            row.style.display = 'none';
+          }
+        }
+      });
+
+      // Save the toggle state to localStorage
+      localStorage.setItem('osrs-collection-log-show-all', showAll.toString());
+    }
+
+    function toggleCollectionLogCheckbox() {
+      const checkbox = document.getElementById('collectionLogShowAll');
+      if (checkbox) {
+        checkbox.checked = !checkbox.checked;
+        toggleCollectionLogView();
+      }
+    }
+
+    function loadCollectionLogToggleState() {
+      const saved = localStorage.getItem('osrs-collection-log-show-all');
+      const checkbox = document.getElementById('collectionLogShowAll');
+
+      if (saved !== null && checkbox) {
+        const showAll = saved === 'true';
+        checkbox.checked = showAll;
+        // Trigger the toggle function to apply the state
+        toggleCollectionLogView();
+      }
+    }
   </script>
 </body>
 </html>`;
