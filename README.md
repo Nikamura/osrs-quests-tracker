@@ -22,6 +22,10 @@ A comprehensive tool to track Old School RuneScape (OSRS) progress for a group o
 
 ### Web Interface
 - **Interactive Dashboard**: Windows 98-style UI with draggable, minimizable windows
+- **Configuration Window**: Centralized control panel for:
+  - Player selection/deselection with visual indicators
+  - Window visibility toggles to show/hide specific data windows
+  - Persistent settings that save across browser sessions
 - **Progress Charts**: Line charts showing progression over time:
   - Quest completion progress
   - Total level progression
@@ -34,6 +38,7 @@ A comprehensive tool to track Old School RuneScape (OSRS) progress for a group o
   - Collection log progress with item icons and completion percentages
 - **Recent Achievements**: Timeline of recent progress with player-specific colors
 - **Player Selection**: Filter views by selected players with persistent preferences
+- **Window Management**: Configure which windows are shown/hidden with persistent preferences
 - **State Synchronization**: Window positions and states sync across browser tabs
 
 ## Project Structure

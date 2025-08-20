@@ -1029,7 +1029,7 @@ function generatePlayerSelectionUI() {
     return "<p>No players found.</p>";
   }
 
-  let selectionHtml = '<div class="player-selection" style="margin-bottom: 15px;">';
+  let selectionHtml = '<div class="player-selection" style="margin-bottom: 20px;">';
   selectionHtml += '<h3>Player Selection</h3>';
   selectionHtml += '<div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 10px;">';
 
@@ -1051,6 +1051,42 @@ function generatePlayerSelectionUI() {
   selectionHtml += '</div>';
 
   return selectionHtml;
+}
+
+function generateWindowVisibilityUI() {
+  const windows = [
+    { id: 'quest-progress', name: 'Quest Progress', enabled: true },
+    { id: 'total-level-progress', name: 'Total Level Progress', enabled: true },
+    { id: 'skill-level-progress', name: 'Skill Level Progress', enabled: true },
+    { id: 'quest-comparison', name: 'Quest Comparison', enabled: true },
+    { id: 'level-comparison', name: 'Level Comparison', enabled: true },
+    { id: 'achievement-diaries-comparison', name: 'Achievement Diaries Comparison', enabled: true },
+    { id: 'music-tracks-comparison', name: 'Music Tracks Comparison', enabled: true },
+    { id: 'collection-log-comparison', name: 'Collection Log Comparison', enabled: true },
+    { id: 'recent-achievements--progress', name: 'Recent Achievements & Progress', enabled: true }
+  ];
+
+  let visibilityHtml = '<div class="window-visibility" style="margin-bottom: 15px;">';
+  visibilityHtml += '<h3>Window Visibility</h3>';
+  visibilityHtml += '<div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 10px;">';
+
+  for (const window of windows) {
+    visibilityHtml += `
+      <label style="display: flex; align-items: center; gap: 5px;" class="window-label">
+        <input type="checkbox" id="window-${window.id}" value="${window.id}" ${window.enabled ? 'checked' : ''} onchange="updateWindowVisibility()">
+        <span class="window-name">${window.name}</span>
+      </label>
+    `;
+  }
+
+  visibilityHtml += '</div>';
+  visibilityHtml += '<div style="margin-top: 10px;">';
+  visibilityHtml += '<button onclick="showAllWindows()">Show All</button>';
+  visibilityHtml += '<button onclick="hideAllWindows()" style="margin-left: 10px;">Hide All</button>';
+  visibilityHtml += '</div>';
+  visibilityHtml += '</div>';
+
+  return visibilityHtml;
 }
 
 async function generateStaticHTML() {
@@ -1091,6 +1127,7 @@ async function generateStaticHTML() {
     const achievementsTableHtml = generateAchievementsTable(achievementsData);
 
     const playerSelectionHtml = generatePlayerSelectionUI();
+    const windowVisibilityHtml = generateWindowVisibilityUI();
 
     const generatedAt = new Date().toLocaleString('en-US', {
       year: 'numeric',
@@ -1231,6 +1268,14 @@ async function generateStaticHTML() {
     .player-label {
       transition: all 0.2s ease;
     }
+    .window-label.unselected .window-name {
+      text-decoration: line-through;
+      color: #888;
+      opacity: 0.6;
+    }
+    .window.hidden {
+      display: none !important;
+    }
     .collection-log-table thead th {
       position: sticky;
       top: 0;
@@ -1265,9 +1310,10 @@ async function generateStaticHTML() {
       </div>
       <div class="window-body">
         ${playerSelectionHtml}
+        ${windowVisibilityHtml}
       </div>
     </div>
-    <div class="window main-window">
+    <div class="window main-window" data-window-id="quest-progress">
       <div class="title-bar">
         <div class="title-bar-text">Quest Progress</div>
         <div class="title-bar-controls">
@@ -1280,7 +1326,7 @@ async function generateStaticHTML() {
         </div>
       </div>
     </div>
-    <div class="window main-window">
+    <div class="window main-window" data-window-id="total-level-progress">
       <div class="title-bar">
         <div class="title-bar-text">Total Level Progress</div>
         <div class="title-bar-controls">
@@ -1293,7 +1339,7 @@ async function generateStaticHTML() {
         </div>
       </div>
     </div>
-    <div class="window main-window">
+    <div class="window main-window" data-window-id="skill-level-progress">
       <div class="title-bar">
         <div class="title-bar-text">Skill Level Progress</div>
         <div class="title-bar-controls">
@@ -1314,7 +1360,7 @@ async function generateStaticHTML() {
         </div>
       </div>
     </div>
-    <div class="window main-window">
+    <div class="window main-window" data-window-id="quest-comparison">
       <div class="title-bar">
         <div class="title-bar-text">Quest Comparison</div>
         <div class="title-bar-controls">
@@ -1325,7 +1371,7 @@ async function generateStaticHTML() {
         ${questTableHtml}
       </div>
     </div>
-    <div class="window main-window">
+    <div class="window main-window" data-window-id="level-comparison">
       <div class="title-bar">
         <div class="title-bar-text">Level Comparison</div>
         <div class="title-bar-controls">
@@ -1336,7 +1382,7 @@ async function generateStaticHTML() {
         ${levelTableHtml}
       </div>
     </div>
-    <div class="window main-window">
+    <div class="window main-window" data-window-id="achievement-diaries-comparison">
       <div class="title-bar">
         <div class="title-bar-text">Achievement Diaries Comparison</div>
         <div class="title-bar-controls">
@@ -1347,7 +1393,7 @@ async function generateStaticHTML() {
         ${achievementDiaryTableHtml}
       </div>
     </div>
-    <div class="window main-window">
+    <div class="window main-window" data-window-id="music-tracks-comparison">
       <div class="title-bar">
         <div class="title-bar-text">Music Tracks Comparison</div>
         <div class="title-bar-controls">
@@ -1358,7 +1404,7 @@ async function generateStaticHTML() {
         ${musicTracksTableHtml}
       </div>
     </div>
-    <div class="window main-window">
+    <div class="window main-window" data-window-id="collection-log-comparison">
       <div class="title-bar">
         <div class="title-bar-text">Collection Log Comparison</div>
         <div class="title-bar-controls">
@@ -1369,7 +1415,7 @@ async function generateStaticHTML() {
         ${collectionLogTableHtml}
       </div>
     </div>
-    <div class="window main-window">
+    <div class="window main-window" data-window-id="recent-achievements--progress">
       <div class="title-bar">
         <div class="title-bar-text">Recent Achievements & Progress</div>
         <div class="title-bar-controls">
@@ -1432,6 +1478,78 @@ async function generateStaticHTML() {
 
       // Save selection state
       savePlayerSelection(selectedPlayers);
+    }
+
+    // Window visibility functions
+    function getSelectedWindows() {
+      const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="window-"]:checked');
+      return Array.from(checkboxes).map(cb => cb.value);
+    }
+
+    function updateWindowVisualIndicators() {
+      const allCheckboxes = document.querySelectorAll('input[type="checkbox"][id^="window-"]');
+      allCheckboxes.forEach(checkbox => {
+        const label = checkbox.closest('.window-label');
+        if (label) {
+          if (checkbox.checked) {
+            label.classList.remove('unselected');
+          } else {
+            label.classList.add('unselected');
+          }
+        }
+      });
+    }
+
+    function updateWindowVisibility() {
+      const selectedWindows = getSelectedWindows();
+
+      // Update visual indicators
+      updateWindowVisualIndicators();
+
+      // Show/hide windows based on selection
+      const allWindows = document.querySelectorAll('.window[data-window-id]');
+      allWindows.forEach(windowElement => {
+        const windowId = windowElement.dataset.windowId;
+        if (selectedWindows.includes(windowId)) {
+          windowElement.classList.remove('hidden');
+        } else {
+          windowElement.classList.add('hidden');
+        }
+      });
+
+      // Save selection state
+      saveWindowVisibility(selectedWindows);
+    }
+
+    function showAllWindows() {
+      const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="window-"]');
+      checkboxes.forEach(cb => cb.checked = true);
+      updateWindowVisibility();
+    }
+
+    function hideAllWindows() {
+      const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="window-"]');
+      checkboxes.forEach(cb => cb.checked = false);
+      updateWindowVisibility();
+    }
+
+    function saveWindowVisibility(selectedWindows) {
+      localStorage.setItem('osrs-selected-windows', JSON.stringify(selectedWindows));
+    }
+
+    function loadWindowVisibility() {
+      const saved = localStorage.getItem('osrs-selected-windows');
+      if (saved) {
+        const selectedWindows = JSON.parse(saved);
+        const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="window-"]');
+        checkboxes.forEach(cb => {
+          cb.checked = selectedWindows.includes(cb.value);
+        });
+        updateWindowVisibility();
+      } else {
+        // If no saved state, just update visual indicators for initial state
+        updateWindowVisualIndicators();
+      }
     }
 
     function selectAllPlayers() {
@@ -2296,6 +2414,7 @@ async function generateStaticHTML() {
       loadWindowOrder();
       initializeDragAndDrop();
       loadPlayerSelection();
+      loadWindowVisibility();
     });
 
     // Also load states immediately in case DOMContentLoaded already fired
@@ -2305,12 +2424,14 @@ async function generateStaticHTML() {
         loadWindowOrder();
         initializeDragAndDrop();
         loadPlayerSelection();
+        loadWindowVisibility();
       });
     } else {
       loadMinimizedStates();
       loadWindowOrder();
       initializeDragAndDrop();
       loadPlayerSelection();
+      loadWindowVisibility();
     }
 
     const ctx = document.getElementById('questChart').getContext('2d');
