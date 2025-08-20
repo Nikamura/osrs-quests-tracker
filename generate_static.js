@@ -1334,6 +1334,8 @@ async function generateStaticHTML() {
   <title>OSRS Tracker</title>
   <link rel="stylesheet" href="https://unpkg.com/98.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- 100% privacy-first analytics -->
+  <script data-collect-dnt="true" async src="https://scripts.simpleanalyticscdn.com/latest.js"></script>
   <style>
     /* Loading screen styles */
     .loading-screen {
@@ -1568,6 +1570,7 @@ async function generateStaticHTML() {
   </style>
 </head>
 <body class="loading" style="background-color: #008080;">
+  <noscript><img src="https://queue.simpleanalyticscdn.com/noscript.gif?collect-dnt=true" alt="" referrerpolicy="no-referrer-when-downgrade"/></noscript>
   <!-- Loading screen -->
   <div class="loading-screen" id="loadingScreen">
     <div class="loading-content">
