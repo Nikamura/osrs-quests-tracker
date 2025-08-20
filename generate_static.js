@@ -1258,7 +1258,7 @@ async function generateStaticHTML() {
   <div class="container">
     <div class="window main-window">
       <div class="title-bar">
-        <div class="title-bar-text">Player Selection</div>
+        <div class="title-bar-text">Configuration</div>
         <div class="title-bar-controls">
           <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
         </div>
