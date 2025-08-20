@@ -932,7 +932,6 @@ async function generateCollectionLogComparisonTable(comparisonData, itemsDatabas
   tableHtml += '<thead><tr>';
   tableHtml += '<th style="width: 50px;">Icon</th>';
   tableHtml += '<th>Item</th>';
-  tableHtml += '<th style="width: 200px;">Collection</th>';
   for (const player of players) {
     tableHtml += `<th style="width: 80px;">${getDisplayName(player)}</th>`;
   }
@@ -969,9 +968,6 @@ async function generateCollectionLogComparisonTable(comparisonData, itemsDatabas
 
     // Item name
     tableHtml += `<td><a href="https://oldschool.runescape.wiki/w/${encodeURIComponent(itemNameForUrl)}" target="_blank" style="text-decoration: none; color: inherit;">${item.name}</a></td>`;
-
-    // Collection (placeholder - would need additional data mapping)
-    tableHtml += '<td>Various</td>';
 
     // Player columns
     for (const player of players) {
@@ -1751,12 +1747,12 @@ async function generateStaticHTML() {
 
       if (!headerRow) return;
 
-      // Get all header cells (skip first 3 cells: icon, item, collection)
+      // Get all header cells (skip first 2 cells: icon, item)
       const headerCells = headerRow.querySelectorAll('th');
-      const playerHeaders = Array.from(headerCells).slice(3); // All remaining columns are player columns
+      const playerHeaders = Array.from(headerCells).slice(2); // All remaining columns are player columns
 
       // Create mapping of column indices to show/hide
-      const columnsToShow = [0, 1, 2]; // Always show icon, item, collection columns
+      const columnsToShow = [0, 1]; // Always show icon, item columns
       const displayToPlayer = {
         'Martynas': 'anime irl',
         'Petras': 'swamp party',
@@ -1774,8 +1770,8 @@ async function generateStaticHTML() {
         const playerKey = displayToPlayer[displayName];
 
         if (playerKey && selectedPlayers.includes(playerKey)) {
-          columnsToShow.push(index + 3); // +3 for icon, item, collection columns
-          selectedPlayerIndices.push(index + 3);
+          columnsToShow.push(index + 2); // +2 for icon, item columns
+          selectedPlayerIndices.push(index + 2);
           header.style.display = '';
         } else {
           header.style.display = 'none';
