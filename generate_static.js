@@ -1407,7 +1407,7 @@ async function generateStaticHTML() {
     }
     .main-window {
       margin: 32px;
-      width: 850px;
+      width: 800px;
     }
     .level-cell {
       text-align: center;
