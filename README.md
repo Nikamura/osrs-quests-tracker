@@ -1,5 +1,7 @@
 # OSRS Tracker
 
+> **Disclaimer**: This project is being vibe coded ✨ Good vibes only! 🌟
+
 ## Overview
 
 A comprehensive tool to track Old School RuneScape (OSRS) progress for a group of friends. This project fetches player data from the RuneLite API and provides a rich web interface to compare and visualize various game metrics including quests, skills, achievement diaries, music tracks, and recent achievements.
