@@ -930,7 +930,7 @@ function getAchievementsData(combatAchievementsData, collectionLogData) {
         }
 
         // Check for individual collection log item completions
-        if (currentData.collection_log && previousData.collection_log) {
+        if (currentData.collection_log && previousData.collection_log && previousData.collectionLogItemCount !== null) {
           const currentItems = new Set(currentData.collection_log);
           const previousItems = new Set(previousData.collection_log);
 
