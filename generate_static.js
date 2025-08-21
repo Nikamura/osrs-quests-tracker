@@ -313,11 +313,7 @@ function generateAchievementDiaryComparisonTable(comparisonData) {
   return tableHtml;
 }
 
-function getCombatAchievementsComparisonData() {
-  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
-  const latestPlayerData = {};
-
-  // Load combat achievements metadata
+function loadCombatAchievementsData() {
   let combatAchievementsData = {};
   try {
     const combatAchievementsFile = readFileSync("game_data/combat_achievements.json", "utf-8");
@@ -328,6 +324,26 @@ function getCombatAchievementsComparisonData() {
   } catch (error) {
     console.error('Error loading combat achievements data:', error);
   }
+  return combatAchievementsData;
+}
+
+function loadCollectionLogData() {
+  let collectionLogData = {};
+  try {
+    const collectionLogFile = readFileSync("game_data/collection_log.json", "utf-8");
+    const collectionLogItems = JSON.parse(collectionLogFile);
+    collectionLogItems.forEach(item => {
+      collectionLogData[item.itemId] = item;
+    });
+  } catch (error) {
+    console.error('Error loading collection log data:', error);
+  }
+  return collectionLogData;
+}
+
+function getCombatAchievementsComparisonData(combatAchievementsData) {
+  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
+  const latestPlayerData = {};
 
   for (const player of players) {
     const playerDir = path.join("player_data", player);
@@ -791,7 +807,7 @@ function generateSkillLevelChartData(playerData, selectedSkill) {
   };
 }
 
-function getAchievementsData() {
+function getAchievementsData(combatAchievementsData, collectionLogData) {
   const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
   const allAchievements = [];
 
@@ -878,18 +894,6 @@ function getAchievementsData() {
           // Find newly completed achievements
           const newAchievements = [...currentAchievements].filter(id => !previousAchievements.has(id));
 
-          // Load combat achievements metadata
-          let combatAchievementsData = {};
-          try {
-            const combatAchievementsFile = readFileSync("game_data/combat_achievements.json", "utf-8");
-            const combatAchievements = JSON.parse(combatAchievementsFile);
-            combatAchievements.forEach(achievement => {
-              combatAchievementsData[achievement.taskId] = achievement;
-            });
-          } catch (error) {
-            console.error('Error loading combat achievements data:', error);
-          }
-
           // Add each new achievement as a separate entry
           for (const achievementId of newAchievements) {
             const achievementData = combatAchievementsData[achievementId];
@@ -932,18 +936,6 @@ function getAchievementsData() {
 
           // Find newly obtained items
           const newItems = [...currentItems].filter(itemId => !previousItems.has(itemId));
-
-          // Load collection log metadata for item names
-          let collectionLogData = {};
-          try {
-            const collectionLogFile = readFileSync("game_data/collection_log.json", "utf-8");
-            const collectionLogItems = JSON.parse(collectionLogFile);
-            collectionLogItems.forEach(item => {
-              collectionLogData[item.itemId] = item;
-            });
-          } catch (error) {
-            console.error('Error loading collection log data:', error);
-          }
 
           // Add each new item as a separate entry
           for (const itemId of newItems) {
@@ -1123,21 +1115,9 @@ function generateAchievementsTable(achievementsData) {
   return tableHtml;
 }
 
-function getCollectionLogComparisonData() {
+function getCollectionLogComparisonData(collectionLogData) {
   const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
   const latestPlayerData = {};
-
-  // Load collection log metadata
-  let collectionLogData = {};
-  try {
-    const collectionLogFile = readFileSync("game_data/collection_log.json", "utf-8");
-    const collectionLogItems = JSON.parse(collectionLogFile);
-    collectionLogItems.forEach(item => {
-      collectionLogData[item.itemId] = item;
-    });
-  } catch (error) {
-    console.error('Error loading collection log data:', error);
-  }
 
   for (const player of players) {
     const playerDir = path.join("player_data", player);
@@ -1342,6 +1322,9 @@ async function generateStaticHTML() {
   console.log('Generating static HTML...');
 
   try {
+    const combatAchievementsData = loadCombatAchievementsData();
+    const collectionLogData = loadCollectionLogData();
+
     const playerData = getPlayerData();
     const chartData = generateChartData(playerData);
     const totalLevelProgressData = getTotalLevelProgressData();
@@ -1358,16 +1341,16 @@ async function generateStaticHTML() {
     const achievementDiaryComparisonData = getAchievementDiaryComparisonData();
     const achievementDiaryTableHtml = generateAchievementDiaryComparisonTable(achievementDiaryComparisonData);
 
-    const combatAchievementsComparisonData = getCombatAchievementsComparisonData();
+    const combatAchievementsComparisonData = getCombatAchievementsComparisonData(combatAchievementsData);
     const combatAchievementsTableHtml = generateCombatAchievementsComparisonTable(combatAchievementsComparisonData);
 
     const musicTracksComparisonData = getMusicTracksComparisonData();
     const musicTracksTableHtml = generateMusicTracksComparisonTable(musicTracksComparisonData);
 
-    const collectionLogComparisonData = getCollectionLogComparisonData();
+    const collectionLogComparisonData = getCollectionLogComparisonData(collectionLogData);
     const collectionLogTableHtml = await generateCollectionLogComparisonTable(collectionLogComparisonData);
 
-    const achievementsData = getAchievementsData();
+    const achievementsData = getAchievementsData(combatAchievementsData, collectionLogData);
     const achievementsTableHtml = generateAchievementsTable(achievementsData);
 
     const playerSelectionHtml = generatePlayerSelectionUI();
