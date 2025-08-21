@@ -925,6 +925,44 @@ function getAchievementsData() {
           }
         }
 
+        // Check for individual collection log item completions
+        if (currentData.collection_log && previousData.collection_log) {
+          const currentItems = new Set(currentData.collection_log);
+          const previousItems = new Set(previousData.collection_log);
+
+          // Find newly obtained items
+          const newItems = [...currentItems].filter(itemId => !previousItems.has(itemId));
+
+          // Load collection log metadata for item names
+          let collectionLogData = {};
+          try {
+            const collectionLogFile = readFileSync("game_data/collection_log.json", "utf-8");
+            const collectionLogItems = JSON.parse(collectionLogFile);
+            collectionLogItems.forEach(item => {
+              collectionLogData[item.itemId] = item;
+            });
+          } catch (error) {
+            console.error('Error loading collection log data:', error);
+          }
+
+          // Add each new item as a separate entry
+          for (const itemId of newItems) {
+            const itemData = collectionLogData[itemId];
+            if (itemData) {
+              allAchievements.push({
+                player: player,
+                type: 'collection_item',
+                name: itemData.itemName,
+                itemIcon: itemData.itemIcon,
+                itemLink: itemData.itemLink,
+                timestamp: currentTimestamp,
+                previousTimestamp: previousTimestamp,
+                displayName: getDisplayName(player)
+              });
+            }
+          }
+        }
+
         // Check for league task completions
         if (currentData.league_tasks && previousData.league_tasks) {
           const currentCount = currentData.league_tasks.length;
@@ -975,7 +1013,9 @@ function generateAchievementsTable(achievementsData) {
     'swamp party': '#36A2EB',
     'clintonhill': '#FFCE56',
     'serasvasalas': '#4BC0C0',
-    'juozulis': '#9966FF'
+    'juozulis': '#9966FF',
+    'scarycorpse': '#FF9F40',
+    'dedspirit': '#C9CBCF'
   };
 
   for (const achievement of achievementsData) {
@@ -1009,7 +1049,11 @@ function generateAchievementsTable(achievementsData) {
   // Type summary
   tableHtml += '<div><strong>By Type:</strong><br>';
   for (const [type, count] of Object.entries(typeStats)) {
-    const typeName = type.charAt(0).toUpperCase() + type.slice(1);
+    let typeName = type.charAt(0).toUpperCase() + type.slice(1);
+    // Special handling for collection_item type
+    if (type === 'collection_item') {
+      typeName = 'Collection Items';
+    }
     tableHtml += `${typeName}: ${count}<br>`;
   }
   tableHtml += '</div>';
@@ -1054,11 +1098,23 @@ function generateAchievementsTable(achievementsData) {
       tableHtml += `<img src="${achievement.tierIconUrl}" alt="Tier" width="20" height="20" style="image-rendering: pixelated;">`;
       tableHtml += `<a href="${achievement.nameWikiLink}" target="_blank" style="text-decoration: none; color: inherit;" title="${achievement.description || ''}">${achievement.name}</a>`;
       tableHtml += `</td>`;
+    }
+    // Handle collection log items with item icons and links
+    else if (achievement.type === 'collection_item' && achievement.itemIcon && achievement.itemLink) {
+      tableHtml += `<td style="display: flex; align-items: center; gap: 8px;">`;
+      tableHtml += `<img src="${achievement.itemIcon}" alt="${achievement.name}" width="20" height="20" style="image-rendering: pixelated;" onerror="this.src='https://oldschool.runescape.wiki/images/Bank_filler.png'">`;
+      tableHtml += `<a href="${achievement.itemLink}" target="_blank" style="text-decoration: none; color: inherit;">${achievement.name}</a>`;
+      tableHtml += `</td>`;
     } else {
       tableHtml += `<td>${achievement.name}</td>`;
     }
 
-    tableHtml += `<td>${achievement.type.charAt(0).toUpperCase() + achievement.type.slice(1)}</td>`;
+    let typeDisplayName = achievement.type.charAt(0).toUpperCase() + achievement.type.slice(1);
+    // Special handling for collection_item type
+    if (achievement.type === 'collection_item') {
+      typeDisplayName = 'Collection Item';
+    }
+    tableHtml += `<td>${typeDisplayName}</td>`;
     tableHtml += `<td>${dateWithTime}</td>`;
     tableHtml += '</tr>';
   }
@@ -1477,6 +1533,7 @@ async function generateStaticHTML() {
     .achievement-music { background-color: #36a2eb; }
     .achievement-combat { background-color: #ff6384; }
     .achievement-collection { background-color: #9966ff; }
+    .achievement-collection_item { background-color: #c9cbcf; }
     .achievement-league { background-color: #ff9f40; }
     .window.minimized .window-body { display: none; }
     .window.minimized { margin-bottom: 10px; }

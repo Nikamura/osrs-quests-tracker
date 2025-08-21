@@ -41,7 +41,7 @@ A comprehensive tool to track Old School RuneScape (OSRS) progress for a group o
   - Combat achievements with tier icons and completion status
   - Music track unlocks
   - Collection log progress with item icons and completion percentages
-- **Recent Achievements**: Timeline of recent progress with player-specific colors
+- **Recent Achievements**: Timeline of recent progress with player-specific colors, including individual collection log items with icons
 - **Player Selection**: Filter views by selected players with persistent preferences
 - **Window Management**: Configure which windows are shown/hidden with persistent preferences
 - **State Synchronization**: Window positions and states sync across browser tabs
