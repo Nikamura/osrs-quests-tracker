@@ -273,8 +273,16 @@ function generateAchievementDiaryComparisonTable(comparisonData) {
     for (const difficulty of difficulties) {
       const statuses = players.map(player => {
         const playerData = playerAchievements[player]?.[achievement];
-        if (!playerData || !playerData[difficulty]) return null;
-        return playerData[difficulty].complete;
+        const difficultyData = playerData?.[difficulty];
+        if (!difficultyData) {
+          return null; // Not started
+        }
+
+        if (Array.isArray(difficultyData.tasks) && difficultyData.tasks.length > 0) {
+          return difficultyData.tasks.every(task => task);
+        }
+
+        return false; // In-progress if tasks array is missing/empty, but entry exists
       });
 
       let rowClass = '';
@@ -853,15 +861,20 @@ function getAchievementsData(combatAchievementsData, collectionLogData) {
               for (const [difficulty, currentDifficulty] of Object.entries(currentDiary)) {
                 if (difficulty !== 'tasks') {
                   const previousDifficulty = previousDiary[difficulty];
-                  if (previousDifficulty && !previousDifficulty.complete && currentDifficulty.complete) {
-                    allAchievements.push({
-                      player: player,
-                      type: 'diary',
-                      name: `${diaryName} ${difficulty}`,
-                      timestamp: currentTimestamp,
-                      previousTimestamp: previousTimestamp,
-                      displayName: getDisplayName(player)
-                    });
+                  if (previousDifficulty) {
+                    const wasCompleted = Array.isArray(previousDifficulty.tasks) && previousDifficulty.tasks.length > 0 && previousDifficulty.tasks.every(task => task);
+                    const isCompleted = Array.isArray(currentDifficulty.tasks) && currentDifficulty.tasks.length > 0 && currentDifficulty.tasks.every(task => task);
+
+                    if (!wasCompleted && isCompleted) {
+                      allAchievements.push({
+                        player: player,
+                        type: 'diary',
+                        name: `${diaryName} ${difficulty}`,
+                        timestamp: currentTimestamp,
+                        previousTimestamp: previousTimestamp,
+                        displayName: getDisplayName(player)
+                      });
+                    }
                   }
                 }
               }
