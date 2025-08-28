@@ -22,6 +22,22 @@ async function getPlayerData(player) {
   return response
 }
 
+async function getHighscoreData(player) {
+  try {
+    const res = await fetch(`https://secure.runescape.com/m=hiscore_oldschool/index_lite.json?player=${player}`);
+
+    if (res.ok) {
+      return await res.json();
+    } else {
+      console.warn(`Failed to fetch highscores for ${player}, status: ${res.status}`)
+      return null;
+    }
+  } catch (error) {
+    console.error(`Error fetching highscores for ${player}:`, error);
+    return null;
+  }
+}
+
 const players = [
   "clintonhill",
   "anime irl",
@@ -45,6 +61,13 @@ for (const player of players) {
       mkdirSync(`player_data/${player}`);
     }
     const data = await getPlayerData(player)
+    const highscoreData = await getHighscoreData(player);
+
+    if (highscoreData) {
+      data.skills = highscoreData.skills;
+      data.activities = highscoreData.activities;
+    }
+
     const fileName = `${player}_${timeStamp}.json`
     writeFileSync(`player_data/${player}/${fileName}`, JSON.stringify(data, null, 2))
   } catch (error) {
