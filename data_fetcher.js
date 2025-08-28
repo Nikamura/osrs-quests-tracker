@@ -22,9 +22,11 @@ async function getPlayerData(player) {
   return response
 }
 
+const ironmanPlayers = ["juozulis", "serasvasalas"]
+
 async function getHighscoreData(player) {
   try {
-    const res = await fetch(`https://secure.runescape.com/m=hiscore_oldschool/index_lite.json?player=${player}`);
+    const res = await fetch(`https://secure.runescape.com/m=${ironmanPlayers.includes(player) ? 'hiscore_oldschool_ironman' : 'hiscore_oldschool'}/index_lite.json?player=${player}`);
 
     if (res.ok) {
       return await res.json();
