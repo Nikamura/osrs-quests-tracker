@@ -3465,6 +3465,7 @@ async function generateStaticHTML() {
             }
           },
           y: {
+            type: 'logarithmic',
             title: {
               display: true,
               text: 'Total XP'
