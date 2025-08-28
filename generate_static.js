@@ -971,6 +971,26 @@ function getAchievementsData(combatAchievementsData, collectionLogData) {
           }
         }
 
+        // Check for activity score increases
+        if (currentData.activities && previousData.activities) {
+          const currentActivitiesMap = new Map(currentData.activities.map(a => [a.name, a.score]));
+          const previousActivitiesMap = new Map(previousData.activities.map(a => [a.name, a.score]));
+
+          for (const [activityName, currentScore] of currentActivitiesMap) {
+            const previousScore = previousActivitiesMap.get(activityName) ?? -1;
+            if (currentScore > previousScore) {
+              allAchievements.push({
+                player: player,
+                type: 'activity',
+                name: previousScore === -1 ? `${activityName} (Score: ${currentScore})` : `${activityName} (${previousScore} -> ${currentScore})`,
+                timestamp: currentTimestamp,
+                previousTimestamp: previousTimestamp,
+                displayName: getDisplayName(player)
+              });
+            }
+          }
+        }
+
       } catch (error) {
         console.error(`Error processing files for ${player}:`, error);
         continue;
@@ -1046,6 +1066,9 @@ function generateAchievementsTable(achievementsData) {
     if (type === 'collection_item') {
       typeName = 'Collection Items';
     }
+    if (type === 'activity') {
+      typeName = 'Activities';
+    }
     tableHtml += `${typeName}: ${count}<br>`;
   }
   tableHtml += '</div>';
@@ -1097,6 +1120,11 @@ function generateAchievementsTable(achievementsData) {
       tableHtml += `<img src="${achievement.itemIcon}" alt="${achievement.name}" width="20" height="20" style="image-rendering: pixelated;" onerror="this.src='https://oldschool.runescape.wiki/images/Bank_filler.png'">`;
       tableHtml += `<a href="${achievement.itemLink}" target="_blank" style="text-decoration: none; color: inherit;">${achievement.name}</a>`;
       tableHtml += `</td>`;
+    } else if (achievement.type === 'activity' && achievement.activityIcon && achievement.activityLink) {
+      tableHtml += `<td style="display: flex; align-items: center; gap: 8px;">`;
+      tableHtml += `<img src="${achievement.activityIcon}" alt="${achievement.name}" width="20" height="20" style="image-rendering: pixelated;" onerror="this.src='https://oldschool.runescape.wiki/images/Bank_filler.png'">`;
+      tableHtml += `<a href="${achievement.activityLink}" target="_blank" style="text-decoration: none; color: inherit;">${achievement.name}</a>`;
+      tableHtml += `</td>`;
     } else {
       tableHtml += `<td>${achievement.name}</td>`;
     }
@@ -1105,6 +1133,9 @@ function generateAchievementsTable(achievementsData) {
     // Special handling for collection_item type
     if (achievement.type === 'collection_item') {
       typeDisplayName = 'Collection Item';
+    }
+    if (achievement.type === 'activity') {
+      typeDisplayName = 'Activity';
     }
     tableHtml += `<td>${typeDisplayName}</td>`;
     tableHtml += `<td>${dateWithTime}</td>`;
@@ -1289,6 +1320,7 @@ function generateWindowVisibilityUI() {
     { id: 'combat-achievements-comparison', name: 'Combat Achievements Comparison', enabled: true },
     { id: 'music-tracks-comparison', name: 'Music Tracks Comparison', enabled: true },
     { id: 'collection-log-comparison', name: 'Collection Log Comparison', enabled: true },
+    { id: 'activities-comparison', name: 'Activities Comparison', enabled: true },
     { id: 'recent-achievements--progress', name: 'Recent Achievements & Progress', enabled: true }
   ];
 
@@ -1393,6 +1425,100 @@ function generateTotalExpChartData(playerData) {
   };
 }
 
+function getActivitiesComparisonData() {
+  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
+  const latestPlayerData = {};
+  const allActivities = new Set();
+
+  for (const player of players) {
+    const playerDir = path.join("player_data", player);
+    const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
+    if (files.length === 0) continue;
+
+    const latestFile = files.sort().pop();
+    const filePath = path.join(playerDir, latestFile);
+    const data = JSON.parse(readFileSync(filePath, "utf-8"));
+
+    if (data.activities && Array.isArray(data.activities)) {
+      const playerActivities = {};
+      data.activities.forEach(activity => {
+        if (activity.score > -1) {
+          playerActivities[activity.name] = activity.score;
+          allActivities.add(activity.name);
+        }
+      });
+      latestPlayerData[player] = playerActivities;
+    }
+  }
+
+  return {
+    players: Object.keys(latestPlayerData).sort(),
+    activities: [...allActivities].sort(),
+    playerActivities: latestPlayerData
+  };
+}
+
+async function generateActivitiesComparisonTable(comparisonData) {
+  const { players, activities, playerActivities } = comparisonData;
+  if (players.length === 0) {
+    return "<p>No player data found to compare activities.</p>";
+  }
+
+  let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
+  tableHtml += '<table class="interactive activities-comparison-table" style="width: 100%;">';
+
+  // Header
+  tableHtml += '<thead><tr><th>Activity</th>';
+  for (const player of players) {
+    tableHtml += `<th>${getDisplayName(player)}</th>`;
+  }
+  tableHtml += '</tr></thead>';
+
+  // Body
+  tableHtml += '<tbody>';
+  for (const activity of activities) {
+    tableHtml += '<tr>';
+    tableHtml += `<td>${activity}</td>`;
+
+    const activityScores = players.map(player => ({
+      player,
+      score: playerActivities[player]?.[activity] ?? 0
+    }));
+
+    const sortedScores = [...activityScores].sort((a, b) => b.score - a.score);
+    const rankings = {};
+    let currentRank = 1;
+    for (let i = 0; i < sortedScores.length; i++) {
+      const { player, score } = sortedScores[i];
+      if (i > 0 && sortedScores[i - 1].score > score) {
+        currentRank = i + 1;
+      }
+      rankings[player] = currentRank;
+    }
+
+    for (const player of players) {
+      const score = playerActivities[player]?.[activity] ?? 0;
+      let scoreClass = 'level-low'; // reuse level classes for now
+      if (score >= 100) scoreClass = 'level-high';
+      else if (score >= 10) scoreClass = 'level-medium';
+
+      let rankingClass = '';
+      if (score > 0) {
+        const rank = rankings[player];
+        if (rank === 1) rankingClass = ' rank-1st';
+        else if (rank === 2) rankingClass = ' rank-2nd';
+        else if (rank === 3) rankingClass = ' rank-3rd';
+      }
+
+      tableHtml += `<td class="level-cell ${scoreClass}${rankingClass}" data-player="${player}" data-activity="${activity}" data-score="${score}">${score}</td>`;
+    }
+    tableHtml += '</tr>';
+  }
+  tableHtml += '</tbody></table></div>';
+
+  return tableHtml;
+}
+
 async function generateStaticHTML() {
   if (!existsSync('public')) {
     mkdirSync('public');
@@ -1430,6 +1556,9 @@ async function generateStaticHTML() {
 
     const collectionLogComparisonData = getCollectionLogComparisonData(collectionLogData);
     const collectionLogTableHtml = await generateCollectionLogComparisonTable(collectionLogComparisonData);
+
+    const activitiesComparisonData = getActivitiesComparisonData();
+    const activitiesTableHtml = await generateActivitiesComparisonTable(activitiesComparisonData);
 
     const achievementsData = getAchievementsData(combatAchievementsData, collectionLogData);
     const achievementsTableHtml = generateAchievementsTable(achievementsData);
@@ -1599,6 +1728,7 @@ async function generateStaticHTML() {
     .achievement-collection { background-color: #9966ff; }
     .achievement-collection_item { background-color: #c9cbcf; }
     .achievement-league { background-color: #ff9f40; }
+    .achievement-activity { background-color: #b7d5d4; }
     .window.minimized .window-body { display: none; }
     .window.minimized { margin-bottom: 10px; }
     .window.dragging { opacity: 0.5; z-index: 1000; }
@@ -1687,6 +1817,13 @@ async function generateStaticHTML() {
     .collection-none { background-color: inherit; }
     .collection-has-item { background-color: #3a8e3a; color: white; font-weight: bold; }
     .collection-missing-item { background-color: #cccccc; }
+    .activities-comparison-table thead th {
+      position: sticky;
+      top: 0;
+      background-color: #c0c0c0;
+      z-index: 10;
+      border-bottom: 2px solid #808080;
+    }
 
   </style>
 </head>
@@ -1851,6 +1988,18 @@ async function generateStaticHTML() {
         ${collectionLogTableHtml}
       </div>
     </div>
+    <div class="window main-window" data-window-id="activities-comparison">
+      <div class="title-bar">
+        <div class="title-bar-text">Activities Comparison</div>
+        <div class="title-bar-controls">
+          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
+          <button aria-label="Close" onclick="closeWindow(this)"></button>
+        </div>
+      </div>
+      <div class="window-body">
+        ${activitiesTableHtml}
+      </div>
+    </div>
     <div class="window main-window" data-window-id="recent-achievements--progress">
       <div class="title-bar">
         <div class="title-bar-text">Recent Achievements & Progress</div>
@@ -1950,6 +2099,7 @@ async function generateStaticHTML() {
       updateMusicTable(selectedPlayers);
       updateCollectionLogTable(selectedPlayers);
       updateAchievementsTable(selectedPlayers);
+      updateActivitiesTable(selectedPlayers);
 
       // Save selection state
       savePlayerSelection(selectedPlayers);
@@ -2739,6 +2889,72 @@ async function generateStaticHTML() {
             row.style.display = 'none';
           }
         }
+      });
+    }
+
+    function updateActivitiesTable(selectedPlayers) {
+      const windows = document.querySelectorAll('.window');
+      let table = null;
+      for (const window of windows) {
+        const titleText = window.querySelector('.title-bar-text');
+        if (titleText && titleText.textContent.includes('Activities Comparison')) {
+          table = window.querySelector('table');
+          break;
+        }
+      }
+      if (!table) return;
+
+      updateTable(table, selectedPlayers, 'activity');
+      updateActivityRankings(table, selectedPlayers);
+    }
+
+    function updateActivityRankings(table, selectedPlayers) {
+      const bodyRows = table.querySelectorAll('tbody tr');
+
+      bodyRows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length === 0) return;
+
+        const scoreCells = Array.from(cells).slice(1);
+
+        const selectedScores = [];
+        scoreCells.forEach((cell, index) => {
+          const playerData = cell.dataset.player;
+          const score = parseInt(cell.dataset.score) || 0;
+
+          if (playerData && selectedPlayers.includes(playerData)) {
+            selectedScores.push({
+              cell: cell,
+              player: playerData,
+              score: score,
+            });
+          }
+        });
+
+        const sortedScores = [...selectedScores].sort((a, b) => b.score - a.score);
+        const rankings = {};
+        let currentRank = 1;
+
+        for (let i = 0; i < sortedScores.length; i++) {
+          const { player, score } = sortedScores[i];
+          if (i > 0 && sortedScores[i - 1].score > score) {
+            currentRank = i + 1;
+          }
+          rankings[player] = currentRank;
+        }
+
+        scoreCells.forEach(cell => {
+          cell.classList.remove('rank-1st', 'rank-2nd', 'rank-3rd');
+        });
+
+        selectedScores.forEach(({ cell, player, score }) => {
+          if (score > 0) {
+            const rank = rankings[player];
+            if (rank === 1) cell.classList.add('rank-1st');
+            else if (rank === 2) cell.classList.add('rank-2nd');
+            else if (rank === 3) cell.classList.add('rank-3rd');
+          }
+        });
       });
     }
 
