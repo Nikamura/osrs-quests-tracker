@@ -1527,6 +1527,44 @@ async function generateActivitiesComparisonTable(comparisonData) {
     }
     tableHtml += '</tr>';
   }
+
+  // Add total activities row
+  tableHtml += '<tr class="activities-total-row">';
+  tableHtml += '<td style="font-weight: bold; font-size: 1.1em;">Total Activities</td>';
+
+  // Calculate total activities for each player (sum of all activity scores)
+  const totalActivities = players.map(player => ({
+    player,
+    total: playerActivities[player] ? Object.values(playerActivities[player]).reduce((sum, score) => sum + (score || 0), 0) : 0
+  }));
+
+  // Sort by total (highest first) and assign rankings
+  const sortedTotals = [...totalActivities].sort((a, b) => b.total - a.total);
+  const totalRankings = {};
+  let currentRank = 1;
+  for (let i = 0; i < sortedTotals.length; i++) {
+    const { player, total } = sortedTotals[i];
+    if (i > 0 && sortedTotals[i - 1].total > total) {
+      currentRank = i + 1;
+    }
+    totalRankings[player] = currentRank;
+  }
+
+  for (const player of players) {
+    const total = totalActivities.find(t => t.player === player)?.total ?? 0;
+
+    let rankingClass = '';
+    if (total > 0) {
+      const rank = totalRankings[player];
+      if (rank === 1) rankingClass = ' rank-1st';
+      else if (rank === 2) rankingClass = ' rank-2nd';
+      else if (rank === 3) rankingClass = ' rank-3rd';
+    }
+
+    tableHtml += `<td class="level-cell ${rankingClass}" data-player="${player}" data-total="${total}" style="font-size: 1.1em; text-align: center;">${total}</td>`;
+  }
+  tableHtml += '</tr>';
+
   tableHtml += '</tbody></table></div>';
 
   return tableHtml;
@@ -1838,6 +1876,14 @@ async function generateStaticHTML() {
       border-bottom: 2px solid #808080;
     }
 
+    .activities-comparison-table .activities-total-row td {
+      position: sticky;
+      bottom: 0;
+      background: #f0f0f0;
+      font-weight: bold;
+      border-top: 3px solid #000;
+      z-index: 5;
+    }
   </style>
 </head>
 <body class="loading" style="background-color: #008080;">
@@ -2933,7 +2979,8 @@ async function generateStaticHTML() {
         const selectedScores = [];
         scoreCells.forEach((cell, index) => {
           const playerData = cell.dataset.player;
-          const score = parseInt(cell.dataset.score) || 0;
+          // Handle both data-score and data-total attributes
+          const score = parseInt(cell.dataset.score || cell.dataset.total) || 0;
 
           if (playerData && selectedPlayers.includes(playerData)) {
             selectedScores.push({
