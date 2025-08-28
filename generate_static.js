@@ -685,6 +685,55 @@ function getSkillLevelProgressData() {
   };
 }
 
+function aggregateDataPoints(data) {
+  const now = new Date();
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  // Group data points by their time bucket
+  const buckets = new Map();
+
+  data.forEach(point => {
+    const timestamp = new Date(point.timestamp);
+    let bucketKey;
+
+    if (timestamp > oneDayAgo) {
+      // Less than 1 day old - keep original timestamp
+      bucketKey = timestamp.toISOString();
+    } else if (timestamp > sevenDaysAgo) {
+      // Between 1-7 days old - group by hour
+      const hourBucket = new Date(timestamp);
+      hourBucket.setMinutes(0, 0, 0);
+      bucketKey = hourBucket.toISOString();
+    } else {
+      // Older than 7 days - group by day
+      const dayBucket = new Date(timestamp);
+      dayBucket.setHours(0, 0, 0, 0);
+      bucketKey = dayBucket.toISOString();
+    }
+
+    if (!buckets.has(bucketKey)) {
+      buckets.set(bucketKey, []);
+    }
+    buckets.get(bucketKey).push(point);
+  });
+
+  // Aggregate points in each bucket
+  const aggregatedData = [];
+  buckets.forEach((points, bucketKey) => {
+    const timestamp = new Date(bucketKey);
+    const maxValue = Math.max(...points.map(p => p.value));
+
+    aggregatedData.push({
+      timestamp,
+      value: maxValue
+    });
+  });
+
+  // Sort by timestamp
+  return aggregatedData.sort((a, b) => a.timestamp - b.timestamp);
+}
+
 function generateChartData(playerData) {
   const datasets = [];
   const labels = new Set();
@@ -699,7 +748,16 @@ function generateChartData(playerData) {
     const color = colors[colorIndex % colors.length];
     colorIndex++;
 
-    const formattedData = data.map(d => {
+    // Convert data to format expected by aggregateDataPoints
+    const dataPoints = data.map(d => ({
+      timestamp: d.timestamp,
+      value: d.completedQuests
+    }));
+
+    // Aggregate data points
+    const aggregatedData = aggregateDataPoints(dataPoints);
+
+    const formattedData = aggregatedData.map(d => {
       const formattedTimestamp = d.timestamp.toLocaleString('en-US', {
         year: 'numeric',
         month: 'short',
@@ -710,7 +768,7 @@ function generateChartData(playerData) {
         timeZone: 'Europe/Vilnius'
       });
       labels.add(formattedTimestamp);
-      return { x: formattedTimestamp, y: d.completedQuests };
+      return { x: formattedTimestamp, y: d.value };
     });
 
     datasets.push({
@@ -742,7 +800,16 @@ function generateTotalLevelChartData(playerData) {
     const color = colors[colorIndex % colors.length];
     colorIndex++;
 
-    const formattedData = data.map(d => {
+    // Convert data to format expected by aggregateDataPoints
+    const dataPoints = data.map(d => ({
+      timestamp: d.timestamp,
+      value: d.totalLevel
+    }));
+
+    // Aggregate data points
+    const aggregatedData = aggregateDataPoints(dataPoints);
+
+    const formattedData = aggregatedData.map(d => {
       const formattedTimestamp = d.timestamp.toLocaleString('en-US', {
         year: 'numeric',
         month: 'short',
@@ -753,7 +820,7 @@ function generateTotalLevelChartData(playerData) {
         timeZone: 'Europe/Vilnius'
       });
       labels.add(formattedTimestamp);
-      return { x: formattedTimestamp, y: d.totalLevel };
+      return { x: formattedTimestamp, y: d.value };
     });
 
     datasets.push({
@@ -785,7 +852,16 @@ function generateSkillLevelChartData(playerData, selectedSkill) {
     const color = colors[colorIndex % colors.length];
     colorIndex++;
 
-    const formattedData = data.map(d => {
+    // Convert data to format expected by aggregateDataPoints
+    const dataPoints = data.map(d => ({
+      timestamp: d.timestamp,
+      value: d.skillLevels[selectedSkill] || 1
+    }));
+
+    // Aggregate data points
+    const aggregatedData = aggregateDataPoints(dataPoints);
+
+    const formattedData = aggregatedData.map(d => {
       const formattedTimestamp = d.timestamp.toLocaleString('en-US', {
         year: 'numeric',
         month: 'short',
@@ -796,8 +872,7 @@ function generateSkillLevelChartData(playerData, selectedSkill) {
         timeZone: 'Europe/Vilnius'
       });
       labels.add(formattedTimestamp);
-      const skillLevel = d.skillLevels[selectedSkill] || 1;
-      return { x: formattedTimestamp, y: skillLevel };
+      return { x: formattedTimestamp, y: d.value };
     });
 
     datasets.push({
@@ -1409,7 +1484,16 @@ function generateTotalExpChartData(playerData) {
     const color = colors[colorIndex % colors.length];
     colorIndex++;
 
-    const formattedData = data.map(d => {
+    // Convert data to format expected by aggregateDataPoints
+    const dataPoints = data.map(d => ({
+      timestamp: d.timestamp,
+      value: d.totalExp
+    }));
+
+    // Aggregate data points
+    const aggregatedData = aggregateDataPoints(dataPoints);
+
+    const formattedData = aggregatedData.map(d => {
       const formattedTimestamp = d.timestamp.toLocaleString('en-US', {
         year: 'numeric',
         month: 'short',
@@ -1420,7 +1504,7 @@ function generateTotalExpChartData(playerData) {
         timeZone: 'Europe/Vilnius'
       });
       labels.add(formattedTimestamp);
-      return { x: formattedTimestamp, y: d.totalExp };
+      return { x: formattedTimestamp, y: d.value };
     });
 
     datasets.push({
@@ -2427,14 +2511,72 @@ async function generateStaticHTML() {
         'dedspirit': 'Egle'
       };
 
+      // Client-side version of aggregateDataPoints
+      function aggregateDataPointsJS(data) {
+        const now = new Date();
+        const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+        // Group data points by their time bucket
+        const buckets = new Map();
+
+        data.forEach(point => {
+          const timestamp = new Date(point.timestamp);
+          let bucketKey;
+
+          if (timestamp > oneDayAgo) {
+            // Less than 1 day old - keep original timestamp
+            bucketKey = timestamp.toISOString();
+          } else if (timestamp > sevenDaysAgo) {
+            // Between 1-7 days old - group by hour
+            const hourBucket = new Date(timestamp);
+            hourBucket.setMinutes(0, 0, 0);
+            bucketKey = hourBucket.toISOString();
+          } else {
+            // Older than 7 days - group by day
+            const dayBucket = new Date(timestamp);
+            dayBucket.setHours(0, 0, 0, 0);
+            bucketKey = dayBucket.toISOString();
+          }
+
+          if (!buckets.has(bucketKey)) {
+            buckets.set(bucketKey, []);
+          }
+          buckets.get(bucketKey).push(point);
+        });
+
+        // Aggregate points in each bucket
+        const aggregatedData = [];
+        buckets.forEach((points, bucketKey) => {
+          const timestamp = new Date(bucketKey);
+          const maxValue = Math.max(...points.map(p => p.value));
+
+          aggregatedData.push({
+            timestamp,
+            value: maxValue
+          });
+        });
+
+        // Sort by timestamp
+        return aggregatedData.sort((a, b) => a.timestamp - b.timestamp);
+      }
+
       for (const player in playerData) {
         const data = playerData[player];
         const color = colors[colorIndex % colors.length];
         colorIndex++;
 
-        const formattedData = data.map(d => {
-          const timestamp = new Date(d.timestamp);
-          const formattedTimestamp = timestamp.toLocaleString('en-US', {
+        // Convert data to format expected by aggregateDataPoints
+        const dataPoints = data.map(d => ({
+          timestamp: new Date(d.timestamp),
+          value: d.skillLevels[selectedSkill] || 1
+        }));
+
+        // Aggregate data points
+        const aggregatedData = aggregateDataPointsJS(dataPoints);
+
+        const formattedData = aggregatedData.map(d => {
+          const formattedTimestamp = d.timestamp.toLocaleString('en-US', {
             year: 'numeric',
             month: 'short',
             day: 'numeric',
@@ -2444,8 +2586,7 @@ async function generateStaticHTML() {
             timeZone: 'Europe/Vilnius'
           });
           labels.add(formattedTimestamp);
-          const skillLevel = d.skillLevels[selectedSkill] || 1;
-          return { x: formattedTimestamp, y: skillLevel };
+          return { x: formattedTimestamp, y: d.value };
         });
 
         datasets.push({
