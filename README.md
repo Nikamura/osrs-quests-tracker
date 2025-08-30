@@ -19,6 +19,7 @@ A comprehensive tool to track Old School RuneScape (OSRS) progress for a group o
   - League tasks
 - **Data Storage**: Stores timestamped JSON files for historical tracking
 - **Data Cleanup**: Automated removal of duplicate consecutive data snapshots
+- **Real-time Data Display**: All data points are displayed without aggregation or bucketing for maximum detail
 
 ### Web Interface
 - **Interactive Dashboard**: Windows 98-style UI with draggable, minimizable, and closable windows
@@ -206,3 +207,15 @@ Display names are mapped in `generate_static.js` for better readability in the i
 - **Data Format**: JSON files with ISO timestamp naming convention
 - **State Management**: localStorage for UI preferences and window states
 - **Responsive Design**: Flexible window layout with drag-and-drop functionality
+
+## Changelog
+
+### Latest Changes
+- **Removed Data Aggregation**: Eliminated date bucketing and grouping logic from charts. All data points are now displayed at full resolution without any aggregation or maxing operations, providing maximum detail in progress tracking.
+- **Fixed Recent Achievements Table Styling**: Resolved inconsistent text styling where some rows appeared bold and others didn't. All rows now have consistent styling with a subtle left border indicator for achievements within the last 24 hours.
+
+### Previous Features
+- Interactive dashboard with Windows 98-style UI
+- Comprehensive player progress tracking
+- Real-time data filtering and comparison tables
+- Persistent user preferences and window management
