@@ -1088,16 +1088,31 @@ function generateAchievementsTable(achievementsData) {
       rowStyle += ` border-left: 4px solid ${playerColor};`;
     }
 
-    // Format date with hours and minutes in Lithuanian timezone
-    const dateWithTime = achievement.timestamp.toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      timeZone: 'Europe/Vilnius'
-    });
+    // Format date as relative time
+    const now = new Date();
+    const relativeTimeDiff = now.getTime() - achievement.timestamp.getTime();
+    const minutes = Math.floor(relativeTimeDiff / (1000 * 60));
+    const hours = Math.floor(relativeTimeDiff / (1000 * 60 * 60));
+    const days = Math.floor(relativeTimeDiff / (1000 * 60 * 60 * 24));
+
+    let dateWithTime;
+    if (minutes < 1) {
+      dateWithTime = 'Just now';
+    } else if (minutes < 60) {
+      dateWithTime = `${minutes}min ago`;
+    } else if (hours < 24) {
+      dateWithTime = `${hours}h ago`;
+    } else if (days < 7) {
+      dateWithTime = `${days}d ago`;
+    } else {
+      // For older dates, show the actual date
+      dateWithTime = achievement.timestamp.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour12: false,
+        timeZone: 'Europe/Vilnius'
+      });
+    }
 
     tableHtml += `<tr style="${rowStyle}">`;
     tableHtml += `<td><strong style="color: ${playerColor};">${achievement.displayName}</strong></td>`;
