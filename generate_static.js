@@ -1,18 +1,10 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import https from "node:https";
+import { PLAYER_CONFIG, CHART_COLORS } from "./config.js";
 
 function getDisplayName(playerDir) {
-  const nameMap = {
-    'anime irl': 'Martynas',
-    'swamp party': 'Petras',
-    'clintonhill': 'Karolis',
-    'serasvasalas': 'Mangirdas',
-    'juozulis': 'Minvydas',
-    'scarycorpse': 'Darius',
-    'dedspirit': 'Egle'
-  };
-  return nameMap[playerDir] || playerDir;
+  return PLAYER_CONFIG.displayNames[playerDir] || playerDir;
 }
 
 function getQuestComparisonData() {
@@ -737,10 +729,7 @@ function aggregateDataPoints(data) {
 function generateChartData(playerData) {
   const datasets = [];
   const labels = new Set();
-  const colors = [
-    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
-    '#FF9F40', '#C9CBCF', '#E7E9ED', '#7C9989', '#B7D5D4'
-  ];
+  const colors = CHART_COLORS;
   let colorIndex = 0;
 
   for (const player in playerData) {
@@ -789,10 +778,7 @@ function generateChartData(playerData) {
 function generateTotalLevelChartData(playerData) {
   const datasets = [];
   const labels = new Set();
-  const colors = [
-    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
-    '#FF9F40', '#C9CBCF', '#E7E9ED', '#7C9989', '#B7D5D4'
-  ];
+  const colors = CHART_COLORS;
   let colorIndex = 0;
 
   for (const player in playerData) {
@@ -841,10 +827,7 @@ function generateTotalLevelChartData(playerData) {
 function generateSkillLevelChartData(playerData, selectedSkill) {
   const datasets = [];
   const labels = new Set();
-  const colors = [
-    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
-    '#FF9F40', '#C9CBCF', '#E7E9ED', '#7C9989', '#B7D5D4'
-  ];
+  const colors = CHART_COLORS;
   let colorIndex = 0;
 
   for (const player in playerData) {
@@ -1108,15 +1091,7 @@ function generateAchievementsTable(achievementsData) {
   // Generate summary statistics
   const playerStats = {};
   const typeStats = {};
-  const playerColors = {
-    'anime irl': '#FF6384',
-    'swamp party': '#36A2EB',
-    'clintonhill': '#FFCE56',
-    'serasvasalas': '#4BC0C0',
-    'juozulis': '#9966FF',
-    'scarycorpse': '#FF9F40',
-    'dedspirit': '#C9CBCF'
-  };
+  const playerColors = PLAYER_CONFIG.colors;
 
   for (const achievement of achievementsData) {
     // Player stats
@@ -1473,10 +1448,7 @@ function getTotalExpProgressData() {
 function generateTotalExpChartData(playerData) {
   const datasets = [];
   const labels = new Set();
-  const colors = [
-    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
-    '#FF9F40', '#C9CBCF', '#E7E9ED', '#7C9989', '#B7D5D4'
-  ];
+  const colors = CHART_COLORS;
   let colorIndex = 0;
 
   for (const player in playerData) {
@@ -1711,6 +1683,9 @@ async function generateStaticHTML() {
       hour12: false,
       timeZone: 'Europe/Vilnius'
     });
+
+    // Store chart colors for template interpolation
+    const chartColors = CHART_COLORS;
 
     const htmlContent = `<!DOCTYPE html>
 <html>
@@ -2202,6 +2177,19 @@ async function generateStaticHTML() {
     let totalExpChart = null;
     let skillLevelChart = null;
 
+    // Create player mapping objects from config
+    const displayToPlayer = {};
+    const playerToDisplay = {};
+    ${Object.entries(PLAYER_CONFIG.displayNames).map(([player, display]) =>
+      `displayToPlayer['${display}'] = '${player}'; playerToDisplay['${player}'] = '${display}';`
+    ).join('\n    ')}
+
+    // Create player colors mapping from config
+    const playerColors = ${JSON.stringify(PLAYER_CONFIG.colors)};
+
+    // Chart colors for client-side use
+    const CHART_COLORS = ${JSON.stringify(chartColors)};
+
     // Player filtering functions
     function getSelectedPlayers() {
       const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="player-"]:checked');
@@ -2382,17 +2370,6 @@ async function generateStaticHTML() {
     function updateChart(selectedPlayers) {
       if (!questChart) return;
 
-      // Create mapping objects
-      const displayToPlayer = {
-        'Martynas': 'anime irl',
-        'Petras': 'swamp party',
-        'Karolis': 'clintonhill',
-        'Mangirdas': 'serasvasalas',
-        'Minvydas': 'juozulis',
-        'Darius': 'scarycorpse',
-        'Egle': 'dedspirit'
-      };
-
       // Filter datasets to only show selected players
       const filteredDatasets = originalChartData.datasets.filter(dataset => {
         // Find the player key that matches this dataset label
@@ -2407,17 +2384,6 @@ async function generateStaticHTML() {
     function updateTotalLevelChart(selectedPlayers) {
       if (!totalLevelChart) return;
 
-      // Create mapping objects
-      const displayToPlayer = {
-        'Martynas': 'anime irl',
-        'Petras': 'swamp party',
-        'Karolis': 'clintonhill',
-        'Mangirdas': 'serasvasalas',
-        'Minvydas': 'juozulis',
-        'Darius': 'scarycorpse',
-        'Egle': 'dedspirit'
-      };
-
       // Filter datasets to only show selected players
       const filteredDatasets = originalTotalLevelChartData.datasets.filter(dataset => {
         // Find the player key that matches this dataset label
@@ -2431,17 +2397,6 @@ async function generateStaticHTML() {
 
     function updateTotalExpChart(selectedPlayers) {
       if (!totalExpChart) return;
-
-      // Create mapping objects
-      const displayToPlayer = {
-        'Martynas': 'anime irl',
-        'Petras': 'swamp party',
-        'Karolis': 'clintonhill',
-        'Mangirdas': 'serasvasalas',
-        'Minvydas': 'juozulis',
-        'Darius': 'scarycorpse',
-        'Egle': 'dedspirit'
-      };
 
       // Filter datasets to only show selected players
       const filteredDatasets = originalTotalExpChartData.datasets.filter(dataset => {
@@ -2463,15 +2418,6 @@ async function generateStaticHTML() {
 
       // Generate new chart data for the selected skill and players
       const filteredPlayerData = {};
-      const displayToPlayer = {
-        'Martynas': 'anime irl',
-        'Petras': 'swamp party',
-        'Karolis': 'clintonhill',
-        'Mangirdas': 'serasvasalas',
-        'Minvydas': 'juozulis',
-        'Darius': 'scarycorpse',
-        'Egle': 'dedspirit'
-      };
 
       // Filter player data to only include selected players
       for (const [player, data] of Object.entries(originalSkillLevelProgressData.playerData)) {
@@ -2495,21 +2441,10 @@ async function generateStaticHTML() {
     function generateSkillLevelChartDataJS(playerData, selectedSkill) {
       const datasets = [];
       const labels = new Set();
-      const colors = [
-        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
-        '#FF9F40', '#C9CBCF', '#E7E9ED', '#7C9989', '#B7D5D4'
-      ];
+      const colors = CHART_COLORS;
       let colorIndex = 0;
 
-      const displayNames = {
-        'anime irl': 'Martynas',
-        'swamp party': 'Petras',
-        'clintonhill': 'Karolis',
-        'serasvasalas': 'Mangirdas',
-        'juozulis': 'Minvydas',
-        'scarycorpse': 'Darius',
-        'dedspirit': 'Egle'
-      };
+      const displayNames = playerToDisplay;
 
       // Client-side version of aggregateDataPoints
       function aggregateDataPointsJS(data) {
@@ -2636,15 +2571,6 @@ async function generateStaticHTML() {
     }
 
         function updateLevelRankings(table, selectedPlayers) {
-      const displayToPlayer = {
-        'Martynas': 'anime irl',
-        'Petras': 'swamp party',
-        'Karolis': 'clintonhill',
-        'Mangirdas': 'serasvasalas',
-        'Minvydas': 'juozulis',
-        'Darius': 'scarycorpse',
-        'Egle': 'dedspirit'
-      };
 
       // Get all rows (skills)
       const bodyRows = table.querySelectorAll('tbody tr');
@@ -2812,15 +2738,6 @@ async function generateStaticHTML() {
 
       // Create mapping of column indices to show/hide
       const columnsToShow = [0, 1]; // Always show icon, item columns
-      const displayToPlayer = {
-        'Martynas': 'anime irl',
-        'Petras': 'swamp party',
-        'Karolis': 'clintonhill',
-        'Mangirdas': 'serasvasalas',
-        'Minvydas': 'juozulis',
-        'Darius': 'scarycorpse',
-        'Egle': 'dedspirit'
-      };
 
       // Track which player columns are selected
       const selectedPlayerIndices = [];
@@ -2883,15 +2800,6 @@ async function generateStaticHTML() {
 
       // Create mapping of column indices to show/hide
       const columnsToShow = [0, 1, 2]; // Always show tier icon, monster, achievement name columns
-      const displayToPlayer = {
-        'Martynas': 'anime irl',
-        'Petras': 'swamp party',
-        'Karolis': 'clintonhill',
-        'Mangirdas': 'serasvasalas',
-        'Minvydas': 'juozulis',
-        'Darius': 'scarycorpse',
-        'Egle': 'dedspirit'
-      };
 
       // Track which player columns are selected
       const selectedPlayerIndices = [];
@@ -3071,16 +2979,7 @@ async function generateStaticHTML() {
         const playerCell = row.querySelector('td:first-child strong');
         if (playerCell) {
           const playerName = playerCell.textContent;
-          // Create mapping object
-          const displayToPlayer = {
-            'Martynas': 'anime irl',
-            'Petras': 'swamp party',
-            'Karolis': 'clintonhill',
-            'Mangirdas': 'serasvasalas',
-            'Minvydas': 'juozulis',
-            'Darius': 'scarycorpse',
-            'Egle': 'dedspirit'
-          };
+          // Use global displayToPlayer mapping
 
           const playerKey = displayToPlayer[playerName];
           if (playerKey && selectedPlayers.includes(playerKey)) {
@@ -3171,15 +3070,6 @@ async function generateStaticHTML() {
 
       // Create mapping of column indices to show/hide
       const columnsToShow = [0]; // Always show first column (item name)
-      const displayToPlayer = {
-        'Martynas': 'anime irl',
-        'Petras': 'swamp party',
-        'Karolis': 'clintonhill',
-        'Mangirdas': 'serasvasalas',
-        'Minvydas': 'juozulis',
-        'Darius': 'scarycorpse',
-        'Egle': 'dedspirit'
-      };
 
       playerHeaders.forEach((header, index) => {
         const displayName = header.textContent;

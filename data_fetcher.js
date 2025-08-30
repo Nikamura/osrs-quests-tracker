@@ -1,4 +1,5 @@
 import { writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { PLAYER_CONFIG } from "./config.js";
 
 async function getPlayerData(player) {
   const response = await fetch(`https://sync.runescape.wiki/runelite/player/${player}/STANDARD`, {
@@ -22,11 +23,9 @@ async function getPlayerData(player) {
   return response
 }
 
-const ironmanPlayers = ["juozulis", "serasvasalas"]
-
 async function getHighscoreData(player) {
   try {
-    const res = await fetch(`https://secure.runescape.com/m=${ironmanPlayers.includes(player) ? 'hiscore_oldschool_ironman' : 'hiscore_oldschool'}/index_lite.json?player=${player}`);
+    const res = await fetch(`https://secure.runescape.com/m=${PLAYER_CONFIG.ironmanPlayers.includes(player) ? 'hiscore_oldschool_ironman' : 'hiscore_oldschool'}/index_lite.json?player=${player}`);
 
     if (res.ok) {
       return await res.json();
@@ -40,23 +39,13 @@ async function getHighscoreData(player) {
   }
 }
 
-const players = [
-  "clintonhill",
-  "anime irl",
-  "swamp party",
-  "juozulis",
-  "serasvasalas",
-  "scarycorpse",
-  "dedspirit"
-]
-
 if (!existsSync("player_data")) {
   mkdirSync("player_data");
 }
 
 const timeStamp = new Date().toISOString();
 
-for (const player of players) {
+for (const player of PLAYER_CONFIG.players) {
   try {
 
     if (!existsSync(`player_data/${player}`)) {

@@ -50,6 +50,7 @@ A comprehensive tool to track Old School RuneScape (OSRS) progress for a group o
 
 ```
 osrs-quest-tracker/
+├── config.js               # Shared configuration for players, names, and colors
 ├── data_fetcher.js         # Fetches player data from RuneLite API
 ├── fetch_collection_log.js # Fetches collection log data from OSRS Wiki
 ├── fetch_combat_achievements.js # Fetches combat achievements data from OSRS Wiki
@@ -62,6 +63,32 @@ osrs-quest-tracker/
 ├── package.json            # Project metadata and npm scripts
 ├── jsconfig.json          # JavaScript language service configuration
 └── README.md              # This documentation
+```
+
+## Configuration
+
+The project uses a centralized configuration system in `config.js` that defines:
+
+- **Player List**: Array of player usernames to track
+- **Display Names**: Mapping of usernames to friendly display names
+- **Player Colors**: Color scheme for charts and visual elements
+- **Ironman Players**: List of players who use ironman highscores
+
+To add or modify players, edit the `PLAYER_CONFIG` object in `config.js`:
+
+```javascript
+export const PLAYER_CONFIG = {
+  players: ["username1", "username2"],
+  displayNames: {
+    "username1": "Friendly Name 1",
+    "username2": "Friendly Name 2"
+  },
+  colors: {
+    "username1": "#FF6384",
+    "username2": "#36A2EB"
+  },
+  ironmanPlayers: ["username1"]
+};
 ```
 
 ## Requirements
@@ -82,8 +109,8 @@ osrs-quest-tracker/
    npm install
    ```
 
-3. Configure players (optional):
-   Edit the `players` array in `data_fetcher.js` to track different players.
+3. Configure players:
+   Edit the `PLAYER_CONFIG` object in `config.js` to add/remove players and customize their display names and colors.
 
 ## Usage
 
