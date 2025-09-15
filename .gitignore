@@ -1,4 +1,5 @@
 player_data/
 node_modules/
-public/
+public/*
+!public/styles.css
 game_data/

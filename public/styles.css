@@ -1,0 +1,417 @@
+/* Loading screen styles */
+.loading-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #008080;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  font-family: 'MS Sans Serif', sans-serif;
+}
+
+.loading-content {
+  text-align: center;
+  color: white;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top: 4px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 20px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.loading-subtext {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* Hide main content during loading */
+body.loading .container {
+  visibility: hidden;
+}
+
+body.loading .generated-at {
+  visibility: hidden;
+}
+
+/* Quest comparison table styles */
+tbody tr:not(.all-completed):not(.not-started-by-any):not(.completed-by-one):nth-child(even) {
+  background-color: #ececec;
+}
+
+.status-in-progress {
+  background-color: yellow;
+}
+
+.status-completed {
+  background-color: lime;
+}
+
+tr.all-completed {
+  background-color: #3a8e3a;
+  color: white;
+  font-weight: bold;
+}
+
+table.interactive tbody tr.all-completed:hover {
+  background-color: #2a7e2a !important;
+}
+
+tr.all-completed td {
+  background-color: inherit !important;
+}
+
+tr.not-started-by-any {
+  background-color: #cccccc;
+}
+
+tr.completed-by-one {
+  background-color: #a6d8f0;
+}
+
+/* Layout styles */
+.container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.main-window {
+  margin: 32px;
+  width: 800px;
+}
+
+/* Level comparison styles */
+.level-cell {
+  text-align: center;
+  font-weight: bold;
+}
+
+.level-high {
+  color: #006600;
+}
+
+.level-medium {
+  color: #cc6600;
+}
+
+.level-low {
+  color: #cc0000;
+}
+
+/* Ranking styles */
+.rank-1st {
+  background: linear-gradient(135deg, #ffd700, #ffed4e) !important;
+  border: 2px solid #b8860b !important;
+  color: #000 !important;
+  font-weight: bold !important;
+  position: relative;
+}
+
+.rank-1st::before {
+  content: "🥇";
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  font-size: 12px;
+}
+
+.rank-2nd {
+  background: linear-gradient(135deg, #c0c0c0, #e8e8e8) !important;
+  border: 2px solid #a0a0a0 !important;
+  color: #000 !important;
+  font-weight: bold !important;
+  position: relative;
+}
+
+.rank-2nd::before {
+  content: "🥈";
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  font-size: 12px;
+}
+
+.rank-3rd {
+  background: linear-gradient(135deg, #cd7f32, #d4a574) !important;
+  border: 2px solid #8b5a2b !important;
+  color: #000 !important;
+  font-weight: bold !important;
+  position: relative;
+}
+
+.rank-3rd::before {
+  content: "🥉";
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  font-size: 12px;
+}
+
+/* Table header sticky styles */
+.level-comparison-table thead th {
+  position: sticky;
+  top: 0;
+  background-color: #c0c0c0;
+  z-index: 10;
+  border-bottom: 2px solid #808080;
+}
+
+.collection-log-table thead th {
+  position: sticky;
+  top: 0;
+  background-color: #c0c0c0;
+  z-index: 10;
+  border-bottom: 2px solid #808080;
+}
+
+.combat-achievements-table thead th {
+  position: sticky;
+  top: 0;
+  background-color: #c0c0c0;
+  z-index: 10;
+  border-bottom: 2px solid #808080;
+}
+
+.activities-comparison-table thead th {
+  position: sticky;
+  top: 0;
+  background-color: #c0c0c0;
+  z-index: 10;
+  border-bottom: 2px solid #808080;
+}
+
+/* Achievement diary styles */
+.diary-complete {
+  background-color: #3a8e3a;
+  color: white;
+  font-weight: bold;
+}
+
+.diary-partial {
+  background-color: #ffcc00;
+}
+
+.diary-not-started {
+  background-color: #cccccc;
+}
+
+/* Music track styles */
+.music-track-unlocked {
+  background-color: #3a8e3a;
+  color: white;
+  font-weight: bold;
+}
+
+.music-track-locked {
+  background-color: #cccccc;
+}
+
+/* Achievement styles */
+.achievement-new {
+  background-color: #ffcc00;
+  font-weight: bold;
+}
+
+.achievement-quest {
+  background-color: #4bc0c0;
+}
+
+.achievement-level {
+  background-color: #ff9f40;
+}
+
+.achievement-diary {
+  background-color: #9966ff;
+}
+
+.achievement-music {
+  background-color: #36a2eb;
+}
+
+.achievement-combat {
+  background-color: #ff6384;
+}
+
+.achievement-collection {
+  background-color: #9966ff;
+}
+
+.achievement-collection_item {
+  background-color: #c9cbcf;
+}
+
+.achievement-league {
+  background-color: #ff9f40;
+}
+
+.achievement-activity {
+  background-color: #b7d5d4;
+}
+
+/* Window management styles */
+.window.minimized .window-body {
+  display: none;
+}
+
+.window.minimized {
+  margin-bottom: 10px;
+}
+
+.window.dragging {
+  opacity: 0.5;
+  z-index: 1000;
+}
+
+.window {
+  transition: transform 0.2s ease;
+}
+
+.title-bar {
+  cursor: grab;
+}
+
+.title-bar:active {
+  cursor: grabbing;
+}
+
+.container.drag-over {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.drop-indicator {
+  position: absolute;
+  background-color: #00ff00;
+  height: 4px;
+  width: 100%;
+  border-radius: 2px;
+  z-index: 999;
+  display: none;
+}
+
+/* Generated timestamp styles */
+.generated-at {
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  z-index: 1000;
+}
+
+/* Player selection styles */
+.player-label.unselected .player-name {
+  text-decoration: line-through;
+  color: #888;
+  opacity: 0.6;
+}
+
+.player-label {
+  transition: all 0.2s ease;
+}
+
+.window-label.unselected .window-name {
+  text-decoration: line-through;
+  color: #888;
+  opacity: 0.6;
+}
+
+.window.hidden {
+  display: none !important;
+}
+
+/* Collection log styles */
+.collection-complete {
+  background-color: #3a8e3a;
+  color: white;
+  font-weight: bold;
+}
+
+.collection-partial {
+  background-color: #ffcc00;
+}
+
+.collection-has-item {
+  background-color: #3a8e3a;
+  color: white;
+  font-weight: bold;
+}
+
+.collection-missing-item {
+  background-color: #cccccc;
+}
+
+.collection-log-table .collection-log-total-row td {
+  position: sticky;
+  bottom: 0;
+  background: #f0f0f0;
+  font-weight: bold;
+  border-top: 3px solid #000;
+  z-index: 5;
+}
+
+/* Combat achievements styles */
+.combat-achievement-complete {
+  background-color: #3a8e3a;
+  color: white;
+  font-weight: bold;
+}
+
+.combat-achievement-partial {
+  background-color: inherit;
+}
+
+.combat-achievement-none {
+  background-color: inherit;
+}
+
+.combat-achievement-completed {
+  background-color: #3a8e3a;
+  color: white;
+  font-weight: bold;
+}
+
+.combat-achievement-not-completed {
+  background-color: #cccccc;
+}
+
+.combat-achievements-total-row td {
+  position: sticky;
+  bottom: 0;
+  background: #f0f0f0;
+  font-weight: bold;
+  border-top: 3px solid #000;
+  z-index: 5;
+}
+
+/* Activities comparison styles */
+.activities-comparison-table .activities-total-row td {
+  position: sticky;
+  bottom: 0;
+  background: #f0f0f0;
+  font-weight: bold;
+  border-top: 3px solid #000;
+  z-index: 5;
+}
