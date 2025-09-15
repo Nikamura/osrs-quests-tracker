@@ -3443,6 +3443,13 @@ async function generateStaticHTML() {
               text: 'Quests Completed'
             }
           }
+        },
+        plugins: {
+          decimation: {
+            enabled: true,
+            algorithm: 'min-max',
+            threshold: 100 // Adjust this value based on your needs
+          }
         }
       }
     });
@@ -3464,6 +3471,13 @@ async function generateStaticHTML() {
               display: true,
               text: 'Total Level'
             }
+          }
+        },
+        plugins: {
+          decimation: {
+            enabled: true,
+            algorithm: 'min-max',
+            threshold: 100
           }
         }
       }
@@ -3488,6 +3502,13 @@ async function generateStaticHTML() {
               text: 'Total XP'
             }
           }
+        },
+        plugins: {
+          decimation: {
+            enabled: true,
+            algorithm: 'min-max',
+            threshold: 100
+          }
         }
       }
     });
@@ -3511,6 +3532,13 @@ async function generateStaticHTML() {
             },
             min: 1,
             max: 99
+          }
+        },
+        plugins: {
+          decimation: {
+            enabled: true,
+            algorithm: 'min-max',
+            threshold: 100
           }
         }
       }
