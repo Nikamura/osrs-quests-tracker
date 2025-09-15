@@ -681,18 +681,40 @@ function getSkillLevelProgressData() {
 
 function generateChartData(playerData) {
   const datasets = [];
-  const labels = new Set();
+  const allTimestamps = new Set();
   const colors = CHART_COLORS;
   let colorIndex = 0;
+
+  // First collect all timestamps
+  for (const player in playerData) {
+    const data = playerData[player];
+    data.forEach(d => allTimestamps.add(d.timestamp.getTime()));
+  }
+
+  // Sort timestamps numerically
+  const sortedTimestamps = [...allTimestamps].sort((a, b) => a - b);
+
+  // Format timestamps after sorting
+  const labels = sortedTimestamps.map(timestamp => {
+    return new Date(timestamp).toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'Europe/Vilnius'
+    });
+  });
 
   for (const player in playerData) {
     const data = playerData[player];
     const color = colors[colorIndex % colors.length];
     colorIndex++;
 
-    // Format data directly without aggregation
-    const formattedData = data.map(d => {
-      const formattedTimestamp = d.timestamp.toLocaleString('en-US', {
+    // Format data using the same timestamp formatting
+    const formattedData = data.map(d => ({
+      x: d.timestamp.toLocaleString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -700,10 +722,9 @@ function generateChartData(playerData) {
         minute: '2-digit',
         hour12: false,
         timeZone: 'Europe/Vilnius'
-      });
-      labels.add(formattedTimestamp);
-      return { x: formattedTimestamp, y: d.completedQuests };
-    });
+      }),
+      y: d.completedQuests
+    }));
 
     datasets.push({
       label: getDisplayName(player),
@@ -715,25 +736,47 @@ function generateChartData(playerData) {
   }
 
   return {
-    labels: [...labels].sort(),
+    labels,
     datasets
   };
 }
 
 function generateTotalLevelChartData(playerData) {
   const datasets = [];
-  const labels = new Set();
+  const allTimestamps = new Set();
   const colors = CHART_COLORS;
   let colorIndex = 0;
+
+  // First collect all timestamps
+  for (const player in playerData) {
+    const data = playerData[player];
+    data.forEach(d => allTimestamps.add(d.timestamp.getTime()));
+  }
+
+  // Sort timestamps numerically
+  const sortedTimestamps = [...allTimestamps].sort((a, b) => a - b);
+
+  // Format timestamps after sorting
+  const labels = sortedTimestamps.map(timestamp => {
+    return new Date(timestamp).toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'Europe/Vilnius'
+    });
+  });
 
   for (const player in playerData) {
     const data = playerData[player];
     const color = colors[colorIndex % colors.length];
     colorIndex++;
 
-    // Format data directly without aggregation
-    const formattedData = data.map(d => {
-      const formattedTimestamp = d.timestamp.toLocaleString('en-US', {
+    // Format data using the same timestamp formatting
+    const formattedData = data.map(d => ({
+      x: d.timestamp.toLocaleString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -741,10 +784,9 @@ function generateTotalLevelChartData(playerData) {
         minute: '2-digit',
         hour12: false,
         timeZone: 'Europe/Vilnius'
-      });
-      labels.add(formattedTimestamp);
-      return { x: formattedTimestamp, y: d.totalLevel };
-    });
+      }),
+      y: d.totalLevel
+    }));
 
     datasets.push({
       label: getDisplayName(player),
@@ -756,25 +798,47 @@ function generateTotalLevelChartData(playerData) {
   }
 
   return {
-    labels: [...labels].sort(),
+    labels,
     datasets
   };
 }
 
 function generateSkillLevelChartData(playerData, selectedSkill) {
   const datasets = [];
-  const labels = new Set();
+  const allTimestamps = new Set();
   const colors = CHART_COLORS;
   let colorIndex = 0;
+
+  // First collect all timestamps
+  for (const player in playerData) {
+    const data = playerData[player];
+    data.forEach(d => allTimestamps.add(d.timestamp.getTime()));
+  }
+
+  // Sort timestamps numerically
+  const sortedTimestamps = [...allTimestamps].sort((a, b) => a - b);
+
+  // Format timestamps after sorting
+  const labels = sortedTimestamps.map(timestamp => {
+    return new Date(timestamp).toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'Europe/Vilnius'
+    });
+  });
 
   for (const player in playerData) {
     const data = playerData[player];
     const color = colors[colorIndex % colors.length];
     colorIndex++;
 
-    // Format data directly without aggregation
-    const formattedData = data.map(d => {
-      const formattedTimestamp = d.timestamp.toLocaleString('en-US', {
+    // Format data using the same timestamp formatting
+    const formattedData = data.map(d => ({
+      x: d.timestamp.toLocaleString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -782,10 +846,9 @@ function generateSkillLevelChartData(playerData, selectedSkill) {
         minute: '2-digit',
         hour12: false,
         timeZone: 'Europe/Vilnius'
-      });
-      labels.add(formattedTimestamp);
-      return { x: formattedTimestamp, y: d.skillLevels[selectedSkill] || 1 };
-    });
+      }),
+      y: d.skillLevels[selectedSkill] || 1
+    }));
 
     datasets.push({
       label: getDisplayName(player),
@@ -797,7 +860,7 @@ function generateSkillLevelChartData(playerData, selectedSkill) {
   }
 
   return {
-    labels: [...labels].sort(),
+    labels,
     datasets
   };
 }
@@ -1394,18 +1457,40 @@ function getTotalExpProgressData() {
 
 function generateTotalExpChartData(playerData) {
   const datasets = [];
-  const labels = new Set();
+  const allTimestamps = new Set();
   const colors = CHART_COLORS;
   let colorIndex = 0;
+
+  // First collect all timestamps
+  for (const player in playerData) {
+    const data = playerData[player];
+    data.forEach(d => allTimestamps.add(d.timestamp.getTime()));
+  }
+
+  // Sort timestamps numerically
+  const sortedTimestamps = [...allTimestamps].sort((a, b) => a - b);
+
+  // Format timestamps after sorting
+  const labels = sortedTimestamps.map(timestamp => {
+    return new Date(timestamp).toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'Europe/Vilnius'
+    });
+  });
 
   for (const player in playerData) {
     const data = playerData[player];
     const color = colors[colorIndex % colors.length];
     colorIndex++;
 
-    // Format data directly without aggregation
-    const formattedData = data.map(d => {
-      const formattedTimestamp = d.timestamp.toLocaleString('en-US', {
+    // Format data using the same timestamp formatting
+    const formattedData = data.map(d => ({
+      x: d.timestamp.toLocaleString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -1413,10 +1498,9 @@ function generateTotalExpChartData(playerData) {
         minute: '2-digit',
         hour12: false,
         timeZone: 'Europe/Vilnius'
-      });
-      labels.add(formattedTimestamp);
-      return { x: formattedTimestamp, y: d.totalExp };
-    });
+      }),
+      y: d.totalExp
+    }));
 
     datasets.push({
       label: getDisplayName(player),
@@ -1428,7 +1512,7 @@ function generateTotalExpChartData(playerData) {
   }
 
   return {
-    labels: [...labels].sort(),
+    labels,
     datasets
   };
 }
@@ -2379,23 +2463,42 @@ async function generateStaticHTML() {
     // JavaScript version of generateSkillLevelChartData for client-side updates
     function generateSkillLevelChartDataJS(playerData, selectedSkill) {
       const datasets = [];
-      const labels = new Set();
+      const allTimestamps = new Set();
       const colors = CHART_COLORS;
       let colorIndex = 0;
 
       const displayNames = playerToDisplay;
 
+      // First collect all timestamps
+      for (const player in playerData) {
+        const data = playerData[player];
+        data.forEach(d => allTimestamps.add(new Date(d.timestamp).getTime()));
+      }
 
+      // Sort timestamps numerically
+      const sortedTimestamps = [...allTimestamps].sort((a, b) => a - b);
+
+      // Format timestamps after sorting
+      const labels = sortedTimestamps.map(timestamp => {
+        return new Date(timestamp).toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+          timeZone: 'Europe/Vilnius'
+        });
+      });
 
       for (const player in playerData) {
         const data = playerData[player];
         const color = colors[colorIndex % colors.length];
         colorIndex++;
 
-        // Format data directly without aggregation
-        const formattedData = data.map(d => {
-          const timestamp = new Date(d.timestamp);
-          const formattedTimestamp = timestamp.toLocaleString('en-US', {
+        // Format data using the same timestamp formatting
+        const formattedData = data.map(d => ({
+          x: new Date(d.timestamp).toLocaleString('en-US', {
             year: 'numeric',
             month: 'short',
             day: 'numeric',
@@ -2403,10 +2506,9 @@ async function generateStaticHTML() {
             minute: '2-digit',
             hour12: false,
             timeZone: 'Europe/Vilnius'
-          });
-          labels.add(formattedTimestamp);
-          return { x: formattedTimestamp, y: d.skillLevels[selectedSkill] || 1 };
-        });
+          }),
+          y: d.skillLevels[selectedSkill] || 1
+        }));
 
         datasets.push({
           label: displayNames[player] || player,
@@ -2418,7 +2520,7 @@ async function generateStaticHTML() {
       }
 
       return {
-        labels: [...labels].sort(),
+        labels,
         datasets
       };
     }
