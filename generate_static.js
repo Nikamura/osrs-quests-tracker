@@ -1649,12 +1649,8 @@ async function generateActivitiesComparisonTable(comparisonData) {
   return tableHtml;
 }
 
-async function generateStaticHTML() {
-  if (!existsSync('public')) {
-    mkdirSync('public');
-  }
-
-  console.log('Generating static HTML...');
+function generateDataFile() {
+  console.log('Generating data file...');
 
   try {
     const combatAchievementsData = loadCombatAchievementsData();
@@ -1670,31 +1666,13 @@ async function generateStaticHTML() {
     const defaultSkill = skillLevelProgressData.availableSkills[0] || 'Attack';
     const skillLevelChartData = generateSkillLevelChartData(skillLevelProgressData.playerData, defaultSkill);
     const questComparisonData = getQuestComparisonData();
-    const questTableHtml = generateQuestComparisonTable(questComparisonData);
-
     const levelComparisonData = getLevelComparisonData();
-    const levelTableHtml = generateLevelComparisonTable(levelComparisonData);
-
     const achievementDiaryComparisonData = getAchievementDiaryComparisonData();
-    const achievementDiaryTableHtml = generateAchievementDiaryComparisonTable(achievementDiaryComparisonData);
-
     const combatAchievementsComparisonData = getCombatAchievementsComparisonData(combatAchievementsData);
-    const combatAchievementsTableHtml = generateCombatAchievementsComparisonTable(combatAchievementsComparisonData);
-
     const musicTracksComparisonData = getMusicTracksComparisonData();
-    const musicTracksTableHtml = generateMusicTracksComparisonTable(musicTracksComparisonData);
-
     const collectionLogComparisonData = getCollectionLogComparisonData(collectionLogData);
-    const collectionLogTableHtml = await generateCollectionLogComparisonTable(collectionLogComparisonData);
-
     const activitiesComparisonData = getActivitiesComparisonData();
-    const activitiesTableHtml = await generateActivitiesComparisonTable(activitiesComparisonData);
-
     const achievementsData = getAchievementsData(combatAchievementsData, collectionLogData);
-    const achievementsTableHtml = generateAchievementsTable(achievementsData);
-
-    const playerSelectionHtml = generatePlayerSelectionUI();
-    const windowVisibilityHtml = generateWindowVisibilityUI();
 
     const generatedAt = new Date().toLocaleString('en-US', {
       year: 'numeric',
@@ -1707,8 +1685,70 @@ async function generateStaticHTML() {
       timeZone: 'Europe/Vilnius'
     });
 
-    // Store chart colors for template interpolation
-    const chartColors = CHART_COLORS;
+    // Create player mapping objects from config
+    const displayToPlayer = {};
+    const playerToDisplay = {};
+    Object.entries(PLAYER_CONFIG.displayNames).forEach(([player, display]) => {
+      displayToPlayer[display] = player;
+      playerToDisplay[player] = display;
+    });
+
+    const aggregatedData = {
+      generatedAt,
+      chartColors: CHART_COLORS,
+      playerColors: PLAYER_CONFIG.colors,
+      displayToPlayer,
+      playerToDisplay,
+      chartData,
+      totalLevelChartData,
+      totalExpChartData,
+      skillLevelChartData,
+      skillLevelProgressData,
+      questComparisonData,
+      levelComparisonData,
+      achievementDiaryComparisonData,
+      combatAchievementsComparisonData,
+      musicTracksComparisonData,
+      collectionLogComparisonData,
+      activitiesComparisonData,
+      achievementsData,
+      combatAchievementsData,
+      collectionLogData
+    };
+
+    writeFileSync('public/data.json', JSON.stringify(aggregatedData), 'utf-8');
+    console.log('Data file generated successfully at public/data.json');
+
+    return aggregatedData;
+  } catch (error) {
+    console.error('Error generating data file:', error);
+    throw error;
+  }
+}
+
+async function generateStaticHTML() {
+  if (!existsSync('public')) {
+    mkdirSync('public');
+  }
+
+  console.log('Generating static HTML...');
+
+  try {
+    // Generate the data file first
+    const aggregatedData = generateDataFile();
+
+    // Generate HTML content using the data
+    const questTableHtml = generateQuestComparisonTable(aggregatedData.questComparisonData);
+    const levelTableHtml = generateLevelComparisonTable(aggregatedData.levelComparisonData);
+    const achievementDiaryTableHtml = generateAchievementDiaryComparisonTable(aggregatedData.achievementDiaryComparisonData);
+    const combatAchievementsTableHtml = generateCombatAchievementsComparisonTable(aggregatedData.combatAchievementsComparisonData);
+    const musicTracksTableHtml = generateMusicTracksComparisonTable(aggregatedData.musicTracksComparisonData);
+    const collectionLogTableHtml = await generateCollectionLogComparisonTable(aggregatedData.collectionLogComparisonData);
+    const activitiesTableHtml = await generateActivitiesComparisonTable(aggregatedData.activitiesComparisonData);
+    const achievementsTableHtml = generateAchievementsTable(aggregatedData.achievementsData);
+
+    const playerSelectionHtml = generatePlayerSelectionUI();
+    const windowVisibilityHtml = generateWindowVisibilityUI();
 
     const htmlContent = `<!DOCTYPE html>
 <html>
@@ -1727,11 +1767,11 @@ async function generateStaticHTML() {
     <div class="loading-content">
       <div class="loading-spinner"></div>
       <div class="loading-text">Loading OSRS Tracker</div>
-      <div class="loading-subtext">Initializing windows and applying saved settings...</div>
+      <div class="loading-subtext">Fetching data and initializing windows...</div>
     </div>
   </div>
 
-  <div class="generated-at">Generated: ${generatedAt}</div>
+  <div class="generated-at" id="generatedAt">Loading...</div>
   <div class="container">
     <div class="window main-window">
       <div class="title-bar">
@@ -1799,9 +1839,7 @@ async function generateStaticHTML() {
         <div style="margin-bottom: 15px;">
           <label for="skillSelect">Select Skill: </label>
           <select id="skillSelect" onchange="updateSkillChart()" style="margin-left: 10px; padding: 5px;">
-            ${skillLevelProgressData.availableSkills.map(skill =>
-      `<option value="${skill}" ${skill === defaultSkill ? 'selected' : ''}>${skill}</option>`
-    ).join('')}
+            <option value="Attack">Attack</option>
           </select>
         </div>
         <div style="max-width: 800px; max-height: 600px;">
@@ -1941,29 +1979,57 @@ async function generateStaticHTML() {
     })();
   </script>
   <script>
-    // Store original data for filtering
-    let originalChartData = ${JSON.stringify(chartData)};
-    let originalTotalLevelChartData = ${JSON.stringify(totalLevelChartData)};
-    let originalTotalExpChartData = ${JSON.stringify(totalExpChartData)};
-    let originalSkillLevelProgressData = ${JSON.stringify(skillLevelProgressData)};
-    let originalSkillLevelChartData = ${JSON.stringify(skillLevelChartData)};
+    // Global data variables
+    let appData = null;
+    let originalChartData = null;
+    let originalTotalLevelChartData = null;
+    let originalTotalExpChartData = null;
+    let originalSkillLevelProgressData = null;
+    let originalSkillLevelChartData = null;
     let questChart = null;
     let totalLevelChart = null;
     let totalExpChart = null;
     let skillLevelChart = null;
 
-    // Create player mapping objects from config
-    const displayToPlayer = {};
-    const playerToDisplay = {};
-    ${Object.entries(PLAYER_CONFIG.displayNames).map(([player, display]) =>
-      `displayToPlayer['${display}'] = '${player}'; playerToDisplay['${player}'] = '${display}';`
-    ).join('\n    ')}
+    // Fetch data from external file
+    async function loadAppData() {
+      try {
+        const response = await fetch('data.json');
+        if (!response.ok) {
+          throw new Error(\`HTTP error! status: \${response.status}\`);
+        }
+        appData = await response.json();
 
-    // Create player colors mapping from config
-    const playerColors = ${JSON.stringify(PLAYER_CONFIG.colors)};
+        // Set up global variables
+        originalChartData = appData.chartData;
+        originalTotalLevelChartData = appData.totalLevelChartData;
+        originalTotalExpChartData = appData.totalExpChartData;
+        originalSkillLevelProgressData = appData.skillLevelProgressData;
+        originalSkillLevelChartData = appData.skillLevelChartData;
 
-    // Chart colors for client-side use
-    const CHART_COLORS = ${JSON.stringify(chartColors)};
+        // Update generated timestamp
+        const generatedAtElement = document.getElementById('generatedAt');
+        if (generatedAtElement) {
+          generatedAtElement.textContent = \`Generated: \${appData.generatedAt}\`;
+        }
+
+        // Populate skill select dropdown
+        const skillSelect = document.getElementById('skillSelect');
+        if (skillSelect && appData.skillLevelProgressData) {
+          const availableSkills = appData.skillLevelProgressData.availableSkills;
+          const defaultSkill = availableSkills[0] || 'Attack';
+
+          skillSelect.innerHTML = availableSkills.map(skill =>
+            \`<option value="\${skill}" \${skill === defaultSkill ? 'selected' : ''}>\${skill}</option>\`
+          ).join('');
+        }
+
+        return appData;
+      } catch (error) {
+        console.error('Error loading app data:', error);
+        throw error;
+      }
+    }
 
     // Player filtering functions
     function getSelectedPlayers() {
@@ -2143,12 +2209,12 @@ async function generateStaticHTML() {
     }
 
     function updateChart(selectedPlayers) {
-      if (!questChart) return;
+      if (!questChart || !appData) return;
 
       // Filter datasets to only show selected players
       const filteredDatasets = originalChartData.datasets.filter(dataset => {
         // Find the player key that matches this dataset label
-        const playerKey = displayToPlayer[dataset.label];
+        const playerKey = appData.displayToPlayer[dataset.label];
         return playerKey && selectedPlayers.includes(playerKey);
       });
 
@@ -2157,12 +2223,12 @@ async function generateStaticHTML() {
     }
 
     function updateTotalLevelChart(selectedPlayers) {
-      if (!totalLevelChart) return;
+      if (!totalLevelChart || !appData) return;
 
       // Filter datasets to only show selected players
       const filteredDatasets = originalTotalLevelChartData.datasets.filter(dataset => {
         // Find the player key that matches this dataset label
-        const playerKey = displayToPlayer[dataset.label];
+        const playerKey = appData.displayToPlayer[dataset.label];
         return playerKey && selectedPlayers.includes(playerKey);
       });
 
@@ -2171,12 +2237,12 @@ async function generateStaticHTML() {
     }
 
     function updateTotalExpChart(selectedPlayers) {
-      if (!totalExpChart) return;
+      if (!totalExpChart || !appData) return;
 
       // Filter datasets to only show selected players
       const filteredDatasets = originalTotalExpChartData.datasets.filter(dataset => {
         // Find the player key that matches this dataset label
-        const playerKey = displayToPlayer[dataset.label];
+        const playerKey = appData.displayToPlayer[dataset.label];
         return playerKey && selectedPlayers.includes(playerKey);
       });
 
@@ -2185,7 +2251,7 @@ async function generateStaticHTML() {
     }
 
     function updateSkillLevelChart(selectedPlayers) {
-      if (!skillLevelChart) return;
+      if (!skillLevelChart || !appData) return;
 
       // Get the currently selected skill
       const skillSelect = document.getElementById('skillSelect');
@@ -2214,12 +2280,14 @@ async function generateStaticHTML() {
 
     // JavaScript version of generateSkillLevelChartData for client-side updates
     function generateSkillLevelChartDataJS(playerData, selectedSkill) {
+      if (!appData) return { labels: [], datasets: [] };
+
       const datasets = [];
       const allTimestamps = new Set();
-      const colors = CHART_COLORS;
+      const colors = appData.chartColors;
       let colorIndex = 0;
 
-      const displayNames = playerToDisplay;
+      const displayNames = appData.playerToDisplay;
 
       // First collect all timestamps
       for (const player in playerData) {
@@ -2481,7 +2549,7 @@ async function generateStaticHTML() {
       const selectedPlayerIndices = [];
       playerHeaders.forEach((header, index) => {
         const displayName = header.textContent;
-        const playerKey = displayToPlayer[displayName];
+        const playerKey = appData.displayToPlayer[displayName];
 
         if (playerKey && selectedPlayers.includes(playerKey)) {
           columnsToShow.push(index + 2); // +2 for icon, item columns
@@ -2543,7 +2611,7 @@ async function generateStaticHTML() {
       const selectedPlayerIndices = [];
       playerHeaders.forEach((header, index) => {
         const displayName = header.textContent;
-        const playerKey = displayToPlayer[displayName];
+        const playerKey = appData.displayToPlayer[displayName];
 
         if (playerKey && selectedPlayers.includes(playerKey)) {
           columnsToShow.push(index + 3); // +3 for tier icon, monster, achievement name columns
@@ -2719,7 +2787,7 @@ async function generateStaticHTML() {
           const playerName = playerCell.textContent;
           // Use global displayToPlayer mapping
 
-          const playerKey = displayToPlayer[playerName];
+          const playerKey = appData.displayToPlayer[playerName];
           if (playerKey && selectedPlayers.includes(playerKey)) {
             row.style.display = '';
           } else {
@@ -2811,7 +2879,7 @@ async function generateStaticHTML() {
 
       playerHeaders.forEach((header, index) => {
         const displayName = header.textContent;
-        const playerKey = displayToPlayer[displayName];
+        const playerKey = appData.displayToPlayer[displayName];
 
         if (playerKey && selectedPlayers.includes(playerKey)) {
           columnsToShow.push(index + 1);
@@ -3142,29 +3210,44 @@ async function generateStaticHTML() {
     });
 
     // Initialize everything and hide loading screen
-    function initializeApp() {
-      // Apply initial states immediately to prevent flashing
-      applyInitialStates();
+    async function initializeApp() {
+      try {
+        // Load app data first
+        await loadAppData();
 
-      // Load all saved states (this will update checkboxes and other UI elements)
-      loadWindowOrder();
-      loadPlayerSelection();
-      loadWindowVisibility();
+        // Apply initial states immediately to prevent flashing
+        applyInitialStates();
 
-      // Initialize interactive features
-      initializeDragAndDrop();
+        // Load all saved states (this will update checkboxes and other UI elements)
+        loadWindowOrder();
+        loadPlayerSelection();
+        loadWindowVisibility();
 
-      // Small delay to ensure all DOM updates are applied
-      setTimeout(() => {
-        // Hide loading screen and show content
+        // Initialize interactive features
+        initializeDragAndDrop();
+
+        // Initialize charts
+        initializeCharts();
+
+        // Small delay to ensure all DOM updates are applied
+        setTimeout(() => {
+          // Hide loading screen and show content
+          const loadingScreen = document.getElementById('loadingScreen');
+          const body = document.body;
+
+          if (loadingScreen) {
+            loadingScreen.style.display = 'none';
+          }
+          body.classList.remove('loading');
+        }, 50);
+      } catch (error) {
+        console.error('Error initializing app:', error);
+        // Show error message
         const loadingScreen = document.getElementById('loadingScreen');
-        const body = document.body;
-
         if (loadingScreen) {
-          loadingScreen.style.display = 'none';
+          loadingScreen.innerHTML = '<div class="loading-content"><div class="loading-text">Error loading data</div><div class="loading-subtext">Please refresh the page</div></div>';
         }
-        body.classList.remove('loading');
-      }, 50);
+      }
     }
 
     // Load states when page loads
@@ -3177,131 +3260,135 @@ async function generateStaticHTML() {
       initializeApp();
     }
 
-    const ctx = document.getElementById('questChart').getContext('2d');
-    questChart = new Chart(ctx, {
-      type: 'line',
-      data: ${JSON.stringify(chartData)},
-      options: {
-        scales: {
-          x: {
-            title: {
-              display: true,
-              text: 'Date'
-            }
-          },
-          y: {
-            title: {
-              display: true,
-              text: 'Quests Completed'
-            }
-          }
-        },
-        plugins: {
-          decimation: {
-            enabled: true,
-            algorithm: 'min-max',
-            threshold: 100 // Adjust this value based on your needs
-          }
-        }
-      }
-    });
+    function initializeCharts() {
+      if (!appData) return;
 
-    const totalLevelCtx = document.getElementById('totalLevelChart').getContext('2d');
-    totalLevelChart = new Chart(totalLevelCtx, {
-      type: 'line',
-      data: ${JSON.stringify(totalLevelChartData)},
-      options: {
-        scales: {
-          x: {
-            title: {
-              display: true,
-              text: 'Date'
-            }
-          },
-          y: {
-            title: {
-              display: true,
-              text: 'Total Level'
-            }
-          }
-        },
-        plugins: {
-          decimation: {
-            enabled: true,
-            algorithm: 'min-max',
-            threshold: 100
-          }
-        }
-      }
-    });
-
-    const totalExpCtx = document.getElementById('totalExpChart').getContext('2d');
-    totalExpChart = new Chart(totalExpCtx, {
-      type: 'line',
-      data: ${JSON.stringify(totalExpChartData)},
-      options: {
-        scales: {
-          x: {
-            title: {
-              display: true,
-              text: 'Date'
-            }
-          },
-          y: {
-            type: 'logarithmic',
-            title: {
-              display: true,
-              text: 'Total XP'
-            }
-          }
-        },
-        plugins: {
-          decimation: {
-            enabled: true,
-            algorithm: 'min-max',
-            threshold: 100
-          }
-        }
-      }
-    });
-
-    const skillLevelCtx = document.getElementById('skillLevelChart').getContext('2d');
-    skillLevelChart = new Chart(skillLevelCtx, {
-      type: 'line',
-      data: ${JSON.stringify(skillLevelChartData)},
-      options: {
-        scales: {
-          x: {
-            title: {
-              display: true,
-              text: 'Date'
-            }
-          },
-          y: {
-            title: {
-              display: true,
-              text: 'Level'
+      const ctx = document.getElementById('questChart').getContext('2d');
+      questChart = new Chart(ctx, {
+        type: 'line',
+        data: originalChartData,
+        options: {
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Date'
+              }
             },
-            min: 1,
-            max: 99
-          }
-        },
-        plugins: {
-          decimation: {
-            enabled: true,
-            algorithm: 'min-max',
-            threshold: 100
+            y: {
+              title: {
+                display: true,
+                text: 'Quests Completed'
+              }
+            }
+          },
+          plugins: {
+            decimation: {
+              enabled: true,
+              algorithm: 'min-max',
+              threshold: 100 // Adjust this value based on your needs
+            }
           }
         }
-      }
-    });
+      });
+
+      const totalLevelCtx = document.getElementById('totalLevelChart').getContext('2d');
+      totalLevelChart = new Chart(totalLevelCtx, {
+        type: 'line',
+        data: originalTotalLevelChartData,
+        options: {
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Date'
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Total Level'
+              }
+            }
+          },
+          plugins: {
+            decimation: {
+              enabled: true,
+              algorithm: 'min-max',
+              threshold: 100
+            }
+          }
+        }
+      });
+
+      const totalExpCtx = document.getElementById('totalExpChart').getContext('2d');
+      totalExpChart = new Chart(totalExpCtx, {
+        type: 'line',
+        data: originalTotalExpChartData,
+        options: {
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Date'
+              }
+            },
+            y: {
+              type: 'logarithmic',
+              title: {
+                display: true,
+                text: 'Total XP'
+              }
+            }
+          },
+          plugins: {
+            decimation: {
+              enabled: true,
+              algorithm: 'min-max',
+              threshold: 100
+            }
+          }
+        }
+      });
+
+      const skillLevelCtx = document.getElementById('skillLevelChart').getContext('2d');
+      skillLevelChart = new Chart(skillLevelCtx, {
+        type: 'line',
+        data: originalSkillLevelChartData,
+        options: {
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: 'Date'
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Level'
+              },
+              min: 1,
+              max: 99
+            }
+          },
+          plugins: {
+            decimation: {
+              enabled: true,
+              algorithm: 'min-max',
+              threshold: 100
+            }
+          }
+        }
+      });
+    }
   </script>
 </body>
 </html>`;
 
     writeFileSync('public/index.html', htmlContent, 'utf-8');
     console.log('Static HTML generated successfully at public/index.html');
-    console.log(`Generated at: ${generatedAt}`);
+    console.log(`Generated at: ${aggregatedData.generatedAt}`);
 
   } catch (error) {
     console.error('Error generating static HTML:', error);

@@ -60,7 +60,7 @@ osrs-quest-tracker/
 ├── cleanup_player_data.js  # Removes duplicate consecutive data files
 ├── game_data/              # Stores static game data
 ├── player_data/            # Directory storing timestamped JSON files per player
-├── public/                 # Generated static files (index.html)
+├── public/                 # Generated static files (index.html, data.json, styles.css)
 ├── package.json            # Project metadata and npm scripts
 ├── jsconfig.json          # JavaScript language service configuration
 └── README.md              # This documentation
@@ -205,6 +205,7 @@ Display names are mapped in `generate_static.js` for better readability in the i
 - **Frontend**: Vanilla JavaScript with Chart.js for visualizations
 - **Styling**: 98.css for retro Windows 98 aesthetic + custom CSS in `public/styles.css`
 - **Data Format**: JSON files with ISO timestamp naming convention
+- **Data Architecture**: Separated data generation from HTML template - all aggregated data is generated into `public/data.json` and fetched asynchronously by the frontend
 - **State Management**: localStorage for UI preferences and window states
 - **Responsive Design**: Flexible window layout with drag-and-drop functionality
 - **CSS Architecture**: Separated inline styles into external CSS file for better maintainability
@@ -212,6 +213,7 @@ Display names are mapped in `generate_static.js` for better readability in the i
 ## Changelog
 
 ### Latest Changes
+- **Data Separation**: Refactored data generation to extract all inline data from HTML into a separate `public/data.json` file. This improves code organization, reduces HTML file size, and enables better caching strategies. The web interface now fetches data asynchronously on page load.
 - **CSS Refactoring**: Extracted all inline CSS from `generate_static.js` into a separate `public/styles.css` file for better maintainability and code organization. The HTML template now references the external stylesheet.
 - **Removed Data Aggregation**: Eliminated date bucketing and grouping logic from charts. All data points are now displayed at full resolution without any aggregation or maxing operations, providing maximum detail in progress tracking.
 - **Fixed Recent Achievements Table Styling**: Resolved inconsistent text styling where some rows appeared bold and others didn't. All rows now have consistent styling with a subtle left border indicator for achievements within the last 24 hours.
