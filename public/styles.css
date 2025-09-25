@@ -200,6 +200,16 @@ tr.completed-by-one {
   border-bottom: 2px solid #808080;
 }
 
+/* Quest totals sticky */
+.quest-comparison-table .quest-total-row td {
+  position: sticky;
+  bottom: 0;
+  background: #f0f0f0;
+  font-weight: bold;
+  border-top: 3px solid #000;
+  z-index: 5;
+}
+
 /* Achievement diary styles */
 .diary-complete {
   background-color: #3a8e3a;
@@ -213,6 +223,16 @@ tr.completed-by-one {
 
 .diary-not-started {
   background-color: #cccccc;
+}
+
+/* Achievement diaries totals sticky */
+.achievement-diaries-table .achievement-diaries-total-row td {
+  position: sticky;
+  bottom: 0;
+  background: #f0f0f0;
+  font-weight: bold;
+  border-top: 3px solid #000;
+  z-index: 5;
 }
 
 /* Music track styles */
@@ -408,6 +428,16 @@ tr.completed-by-one {
 
 /* Music tracks totals sticky */
 .music-tracks-table .music-tracks-total-row td {
+  position: sticky;
+  bottom: 0;
+  background: #f0f0f0;
+  font-weight: bold;
+  border-top: 3px solid #000;
+  z-index: 5;
+}
+
+/* Level totals sticky */
+.level-comparison-table .level-total-row td {
   position: sticky;
   bottom: 0;
   background: #f0f0f0;

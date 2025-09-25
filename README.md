@@ -42,6 +42,7 @@ A comprehensive tool to track Old School RuneScape (OSRS) progress for a group o
   - Achievement diary progress
   - Combat achievements with tier icons and completion status
   - Music track unlocks
+  - Quest names now link to OSRS Wiki pages; music tracks link to their Wiki pages too
   - Collection log progress with item icons and completion percentages
 - **Recent Achievements**: Timeline of recent progress with player-specific colors, including individual collection log items with icons
 - **Player Selection**: Filter views by selected players with persistent preferences
@@ -217,6 +218,10 @@ Display names are mapped in `generate_static.js` for better readability in the i
 ## Changelog
 
 ### Latest Changes
+- Quest comparison table: added sticky totals row and clickable quest names linking to the OSRS Wiki using metadata from `game_data/quests.json`.
+- Achievement diaries table: added sticky totals row.
+- Music tracks comparison: clickable track names using metadata from `game_data/music_tracks.json` and sticky totals row.
+- Recent Achievements & Progress: includes collection items when previous counts were null, and adds music unlock achievements.
 - **Total XP Scale Toggle Button**: The toggle is now a button inside the Total XP window (label: "Log scale: On/Off"). Preference persists in localStorage and applies immediately.
 - **CSS Refactoring**: Extracted all inline CSS from `generate_static.js` into a separate `public/styles.css` file for better maintainability and code organization. The HTML template now references the external stylesheet.
 - **Removed Data Aggregation**: Eliminated date bucketing and grouping logic from charts. All data points are now displayed at full resolution without any aggregation or maxing operations, providing maximum detail in progress tracking.

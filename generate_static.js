@@ -11,6 +11,18 @@ function getQuestComparisonData() {
   const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
   const latestPlayerData = {};
   const allQuests = new Set();
+  let questMetaByName = {};
+
+  try {
+    const questsJson = readFileSync("game_data/quests.json", "utf-8");
+    const quests = JSON.parse(questsJson);
+    questMetaByName = quests.reduce((acc, q) => {
+      acc[q.name] = q;
+      return acc;
+    }, {});
+  } catch (e) {
+    console.warn('Quests metadata not found or invalid, quest links will be plain text.');
+  }
 
   for (const player of players) {
     const playerDir = path.join("player_data", player);
@@ -28,18 +40,19 @@ function getQuestComparisonData() {
   return {
     players: Object.keys(latestPlayerData).sort(),
     quests: [...allQuests].sort(),
-    playerQuests: latestPlayerData
+    playerQuests: latestPlayerData,
+    questMetaByName
   };
 }
 
 function generateQuestComparisonTable(comparisonData) {
-  const { players, quests, playerQuests } = comparisonData;
+  const { players, quests, playerQuests, questMetaByName } = comparisonData;
   if (players.length === 0) {
     return "<p>No player data found to compare quests.</p>";
   }
 
   let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
-  tableHtml += '<table class="interactive" style="width: 100%;">';
+  tableHtml += '<table class="interactive quest-comparison-table" style="width: 100%;">';
 
   // Header
   tableHtml += '<thead><tr><th>Quest</th>';
@@ -63,7 +76,12 @@ function generateQuestComparisonTable(comparisonData) {
     }
 
     tableHtml += `<tr class="${rowClass}">`;
-    tableHtml += `<td>${quest}</td>`;
+    const meta = questMetaByName ? questMetaByName[quest] : null;
+    if (meta && meta.nameWikiLink) {
+      tableHtml += `<td><a href="${meta.nameWikiLink}" target="_blank" style="text-decoration: none; color: inherit;">${quest}</a></td>`;
+    } else {
+      tableHtml += `<td>${quest}</td>`;
+    }
     for (const status of statuses) {
       let statusClass = 'status-not-started';
       if (status === 1) statusClass = 'status-in-progress';
@@ -72,6 +90,40 @@ function generateQuestComparisonTable(comparisonData) {
     }
     tableHtml += '</tr>';
   }
+  // Add total quests completed row (sticky)
+  const totalCompleted = players.map(player => {
+    const pq = playerQuests[player] || {};
+    return Object.values(pq).reduce((sum, status) => sum + (status === 2 ? 1 : 0), 0);
+  });
+
+  // Rankings for totals
+  const totalsForRanking = players.map((player, idx) => ({ player, total: totalCompleted[idx] }));
+  const sortedTotals = [...totalsForRanking].sort((a, b) => b.total - a.total);
+  const totalRankings = {};
+  let currentRank = 1;
+  for (let i = 0; i < sortedTotals.length; i++) {
+    const { player, total } = sortedTotals[i];
+    if (i > 0 && sortedTotals[i - 1].total > total) {
+      currentRank = i + 1;
+    }
+    totalRankings[player] = currentRank;
+  }
+
+  tableHtml += '<tr class="quest-total-row">';
+  tableHtml += '<td style="font-size: 1.1em; font-weight: bold;">Total Quests Completed</td>';
+  for (let i = 0; i < players.length; i++) {
+    const player = players[i];
+    const total = totalCompleted[i];
+    let rankingClass = '';
+    if (total > 0) {
+      const rank = totalRankings[player];
+      if (rank === 1) rankingClass = ' rank-1st';
+      else if (rank === 2) rankingClass = ' rank-2nd';
+      else if (rank === 3) rankingClass = ' rank-3rd';
+    }
+    tableHtml += `<td class="level-cell${rankingClass}" data-player="${player}" data-total="${total}" style="font-size: 1.1em; text-align: center;">${total}</td>`;
+  }
+  tableHtml += '</tr>';
   tableHtml += '</tbody></table></div>';
 
   return tableHtml;
@@ -164,8 +216,8 @@ function generateLevelComparisonTable(comparisonData) {
     tableHtml += '</tr>';
   }
 
-  // Add total level row
-  tableHtml += '<tr style="border-top: 3px solid #000; background-color: #f0f0f0; font-weight: bold;">';
+  // Add total level row (sticky)
+  tableHtml += '<tr class="level-total-row">';
   tableHtml += '<td style="font-weight: bold; font-size: 1.1em;">Total Level</td>';
 
   // Calculate total levels for each player
@@ -246,7 +298,7 @@ function generateAchievementDiaryComparisonTable(comparisonData) {
   }
 
   let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
-  tableHtml += '<table class="interactive" style="width: 100%;">';
+  tableHtml += '<table class="interactive achievement-diaries-table" style="width: 100%;">';
 
   // Header
   tableHtml += '<thead><tr><th>Achievement Diary</th>';
@@ -308,6 +360,53 @@ function generateAchievementDiaryComparisonTable(comparisonData) {
       tableHtml += '</tr>';
     }
   }
+  // Add sticky totals row for diaries
+  tableHtml += '<tr class="achievement-diaries-total-row">';
+  tableHtml += '<td style="font-weight: bold; font-size: 1.1em;">Total Completed</td>';
+
+  // Calculate total number of completed diary difficulties per player
+  const difficulties = ['Easy', 'Medium', 'Hard', 'Elite'];
+  const totals = players.map(player => {
+    let total = 0;
+    for (const achievement of achievements) {
+      const playerData = playerAchievements[player]?.[achievement];
+      if (!playerData) continue;
+      for (const diff of difficulties) {
+        const d = playerData[diff];
+        if (d && Array.isArray(d.tasks) && d.tasks.length > 0 && d.tasks.every(t => t)) {
+          total += 1;
+        }
+      }
+    }
+    return total;
+  });
+
+  // Rankings
+  const totalsForRanking = players.map((player, idx) => ({ player, total: totals[idx] }));
+  const sortedTotals = [...totalsForRanking].sort((a, b) => b.total - a.total);
+  const totalRankings = {};
+  let currentRank = 1;
+  for (let i = 0; i < sortedTotals.length; i++) {
+    const { player, total } = sortedTotals[i];
+    if (i > 0 && sortedTotals[i - 1].total > total) {
+      currentRank = i + 1;
+    }
+    totalRankings[player] = currentRank;
+  }
+
+  for (let i = 0; i < players.length; i++) {
+    const player = players[i];
+    const total = totals[i];
+    let rankingClass = '';
+    if (total > 0) {
+      const rank = totalRankings[player];
+      if (rank === 1) rankingClass = ' rank-1st';
+      else if (rank === 2) rankingClass = ' rank-2nd';
+      else if (rank === 3) rankingClass = ' rank-3rd';
+    }
+    tableHtml += `<td class="level-cell${rankingClass}" data-player="${player}" data-total="${total}" style="font-size: 1.1em; text-align: center;">${total}</td>`;
+  }
+  tableHtml += '</tr>';
   tableHtml += '</tbody></table></div>';
 
   return tableHtml;
@@ -339,6 +438,21 @@ function loadCollectionLogData() {
     console.error('Error loading collection log data:', error);
   }
   return collectionLogData;
+}
+
+function loadMusicTracksData() {
+  let musicTracksData = {};
+  try {
+    const musicTracksFile = readFileSync("game_data/music_tracks.json", "utf-8");
+    const tracks = JSON.parse(musicTracksFile);
+    tracks.forEach(track => {
+      // Key by name for lookup
+      musicTracksData[track.name] = track;
+    });
+  } catch (error) {
+    console.error('Error loading music tracks data:', error);
+  }
+  return musicTracksData;
 }
 
 function getCombatAchievementsComparisonData(combatAchievementsData) {
@@ -529,7 +643,7 @@ function getMusicTracksComparisonData() {
   };
 }
 
-function generateMusicTracksComparisonTable(comparisonData) {
+function generateMusicTracksComparisonTable(comparisonData, musicTracksData) {
   const { players, musicTracks, playerMusicTracks } = comparisonData;
   if (players.length === 0) {
     return "<p>No player data found to compare music tracks.</p>";
@@ -564,7 +678,12 @@ function generateMusicTracksComparisonTable(comparisonData) {
     }
 
     tableHtml += `<tr class="${rowClass}">`;
-    tableHtml += `<td>${track}</td>`;
+    const meta = musicTracksData && musicTracksData[track];
+    if (meta && meta.nameWikiLink) {
+      tableHtml += `<td><a href="${meta.nameWikiLink}" target="_blank" style="text-decoration: none; color: inherit;">${track}</a></td>`;
+    } else {
+      tableHtml += `<td>${track}</td>`;
+    }
 
     for (const status of statuses) {
       let statusClass = '';
@@ -905,7 +1024,7 @@ function generateSkillLevelChartData(playerData, selectedSkill) {
   };
 }
 
-function getAchievementsData(combatAchievementsData, collectionLogData) {
+function getAchievementsData(combatAchievementsData, collectionLogData, musicTracksData) {
   const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
   const allAchievements = [];
 
@@ -1016,10 +1135,12 @@ function getAchievementsData(combatAchievementsData, collectionLogData) {
           }
         }
 
-        // Check for collection log progress
-        if (currentData.collectionLogItemCount !== null && previousData.collectionLogItemCount !== null) {
+        // Check for collection log progress (handle nulls as zero)
+        if (currentData.collectionLogItemCount !== null && currentData.collectionLogItemCount !== undefined) {
           const currentCount = currentData.collectionLogItemCount;
-          const previousCount = previousData.collectionLogItemCount;
+          const previousCount = (previousData.collectionLogItemCount !== null && previousData.collectionLogItemCount !== undefined)
+            ? previousData.collectionLogItemCount
+            : (Array.isArray(previousData.collection_log) ? previousData.collection_log.length : 0);
           if (currentCount > previousCount) {
             allAchievements.push({
               player: player,
@@ -1032,10 +1153,10 @@ function getAchievementsData(combatAchievementsData, collectionLogData) {
           }
         }
 
-        // Check for individual collection log item completions
-        if (currentData.collection_log && previousData.collection_log && previousData.collectionLogItemCount !== null) {
+        // Check for individual collection log item completions (treat missing previous as empty)
+        if (currentData.collection_log) {
           const currentItems = new Set(currentData.collection_log);
-          const previousItems = new Set(previousData.collection_log);
+          const previousItems = new Set(previousData.collection_log || []);
 
           // Find newly obtained items
           const newItems = [...currentItems].filter(itemId => !previousItems.has(itemId));
@@ -1050,6 +1171,26 @@ function getAchievementsData(combatAchievementsData, collectionLogData) {
                 name: itemData.itemName,
                 itemIcon: itemData.itemIcon,
                 itemLink: itemData.itemLink,
+                timestamp: currentTimestamp,
+                previousTimestamp: previousTimestamp,
+                displayName: getDisplayName(player)
+              });
+            }
+          }
+        }
+
+        // Check for music tracks unlocked
+        if (currentData.music_tracks) {
+          const prevMusic = previousData.music_tracks || {};
+          for (const [trackName, isUnlocked] of Object.entries(currentData.music_tracks)) {
+            const wasUnlocked = !!prevMusic[trackName];
+            if (!wasUnlocked && isUnlocked === true) {
+              const meta = musicTracksData ? musicTracksData[trackName] : null;
+              allAchievements.push({
+                player: player,
+                type: 'music',
+                name: trackName,
+                nameWikiLink: meta?.nameWikiLink,
                 timestamp: currentTimestamp,
                 previousTimestamp: previousTimestamp,
                 displayName: getDisplayName(player)
@@ -1701,6 +1842,7 @@ async function generateStaticHTML() {
   try {
     const combatAchievementsData = loadCombatAchievementsData();
     const collectionLogData = loadCollectionLogData();
+    const musicTracksData = loadMusicTracksData();
 
     const playerData = getPlayerData();
     const chartData = generateChartData(playerData);
@@ -1724,7 +1866,7 @@ async function generateStaticHTML() {
     const combatAchievementsTableHtml = generateCombatAchievementsComparisonTable(combatAchievementsComparisonData);
 
     const musicTracksComparisonData = getMusicTracksComparisonData();
-    const musicTracksTableHtml = generateMusicTracksComparisonTable(musicTracksComparisonData);
+    const musicTracksTableHtml = generateMusicTracksComparisonTable(musicTracksComparisonData, musicTracksData);
 
     const collectionLogComparisonData = getCollectionLogComparisonData(collectionLogData);
     const collectionLogTableHtml = await generateCollectionLogComparisonTable(collectionLogComparisonData);
@@ -1732,7 +1874,7 @@ async function generateStaticHTML() {
     const activitiesComparisonData = getActivitiesComparisonData();
     const activitiesTableHtml = await generateActivitiesComparisonTable(activitiesComparisonData);
 
-    const achievementsData = getAchievementsData(combatAchievementsData, collectionLogData);
+    const achievementsData = getAchievementsData(combatAchievementsData, collectionLogData, musicTracksData);
     const achievementsTableHtml = generateAchievementsTable(achievementsData);
 
     const playerSelectionHtml = generatePlayerSelectionUI();
