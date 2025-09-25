@@ -35,6 +35,7 @@ A comprehensive tool to track Old School RuneScape (OSRS) progress for a group o
   - Quest completion progress
   - Total level progression
   - Individual skill level progression (with skill selector dropdown)
+  - Total XP progression with a toggleable logarithmic/linear Y-axis (button in the Total XP window)
 - **Comparison Tables**: Side-by-side comparison of:
   - Quest completion status
   - Skill levels with color-coded ranges and rankings
@@ -212,6 +213,7 @@ Display names are mapped in `generate_static.js` for better readability in the i
 ## Changelog
 
 ### Latest Changes
+- **Total XP Scale Toggle Button**: The toggle is now a button inside the Total XP window (label: "Log scale: On/Off"). Preference persists in localStorage and applies immediately.
 - **CSS Refactoring**: Extracted all inline CSS from `generate_static.js` into a separate `public/styles.css` file for better maintainability and code organization. The HTML template now references the external stylesheet.
 - **Removed Data Aggregation**: Eliminated date bucketing and grouping logic from charts. All data points are now displayed at full resolution without any aggregation or maxing operations, providing maximum detail in progress tracking.
 - **Fixed Recent Achievements Table Styling**: Resolved inconsistent text styling where some rows appeared bold and others didn't. All rows now have consistent styling with a subtle left border indicator for achievements within the last 24 hours.

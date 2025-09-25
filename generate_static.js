@@ -1420,6 +1420,8 @@ function generateWindowVisibilityUI() {
   return visibilityHtml;
 }
 
+// Chart Options UI removed from Configuration; control moved into Total XP window
+
 function getTotalExpProgressData() {
   const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
   const playerData = {};
@@ -1782,6 +1784,9 @@ async function generateStaticHTML() {
         </div>
       </div>
       <div class="window-body">
+        <div style="margin-bottom: 10px; display: flex; gap: 10px; align-items: center;">
+          <button id="btn-totalxp-scale">Log scale: On</button>
+        </div>
         <div style="max-width: 800px; max-height: 600px;">
           <canvas id="totalExpChart"></canvas>
         </div>
@@ -1969,6 +1974,39 @@ async function generateStaticHTML() {
     function getSelectedPlayers() {
       const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="player-"]:checked');
       return Array.from(checkboxes).map(cb => cb.value);
+    }
+
+    // Chart options (Total XP scale) persistence and UI
+    function saveTotalXpLogScalePreference(isLog) {
+      localStorage.setItem('osrs-totalxp-log-scale', JSON.stringify(isLog));
+    }
+
+    function loadTotalXpLogScalePreference() {
+      const saved = localStorage.getItem('osrs-totalxp-log-scale');
+      return saved ? JSON.parse(saved) : true; // default to logarithmic
+    }
+
+    function applyTotalXpScale(isLog) {
+      if (!totalExpChart) return;
+      totalExpChart.options.scales.y.type = isLog ? 'logarithmic' : 'linear';
+      totalExpChart.update();
+    }
+
+    function initializeTotalXpScaleButton() {
+      const button = document.getElementById('btn-totalxp-scale');
+      if (!button) return;
+      function setLabel(isLog) {
+        button.textContent = isLog ? 'Log scale: On' : 'Log scale: Off';
+      }
+      const saved = loadTotalXpLogScalePreference();
+      setLabel(saved);
+      button.addEventListener('click', function() {
+        const current = loadTotalXpLogScalePreference();
+        const next = !current;
+        saveTotalXpLogScalePreference(next);
+        setLabel(next);
+        applyTotalXpScale(next);
+      });
     }
 
     function updatePlayerVisualIndicators() {
@@ -3153,6 +3191,7 @@ async function generateStaticHTML() {
 
       // Initialize interactive features
       initializeDragAndDrop();
+      initializeTotalXpScaleButton();
 
       // Small delay to ensure all DOM updates are applied
       setTimeout(() => {
@@ -3236,6 +3275,7 @@ async function generateStaticHTML() {
     });
 
     const totalExpCtx = document.getElementById('totalExpChart').getContext('2d');
+    const initialTotalXpLogScale = loadTotalXpLogScalePreference();
     totalExpChart = new Chart(totalExpCtx, {
       type: 'line',
       data: ${JSON.stringify(totalExpChartData)},
@@ -3248,7 +3288,7 @@ async function generateStaticHTML() {
             }
           },
           y: {
-            type: 'logarithmic',
+            type: initialTotalXpLogScale ? 'logarithmic' : 'linear',
             title: {
               display: true,
               text: 'Total XP'
