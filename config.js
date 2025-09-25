@@ -6,7 +6,8 @@ export const PLAYER_CONFIG = {
     "juozulis",
     "serasvasalas",
     "scarycorpse",
-    "dedspirit"
+    "dedspirit",
+    "justlikemoon"
   ],
 
   displayNames: {
@@ -16,7 +17,8 @@ export const PLAYER_CONFIG = {
     'serasvasalas': 'Mangirdas',
     'juozulis': 'Minvydas',
     'scarycorpse': 'Darius',
-    'dedspirit': 'Egle'
+    'dedspirit': 'Egle',
+    'justlikemoon': 'Justas'
   },
 
   colors: {
@@ -26,7 +28,8 @@ export const PLAYER_CONFIG = {
     'serasvasalas': '#4BC0C0',
     'juozulis': '#9966FF',
     'scarycorpse': '#FF9F40',
-    'dedspirit': '#C9CBCF'
+    'dedspirit': '#C9CBCF',
+    'justlikemoon': '#E7E9ED'
   },
 
   ironmanPlayers: ["juozulis", "serasvasalas"]
