@@ -150,6 +150,8 @@ npm run cleanup
 - `npm run cleanup` - Remove duplicate data files
 - `npm run fetch-combat-achievements` - Fetch latest combat achievements data from the OSRS Wiki
 - `npm run fetch-collection-log` - Fetch latest collection log data from the OSRS Wiki
+- `npm run fetch-music-tracks` - Fetch latest music tracks metadata from the OSRS Wiki
+- `npm run fetch-quests` - Fetch latest quests and miniquests from the OSRS Wiki into a unified list
 
 ## Combat Achievements Feature
 
@@ -179,6 +181,8 @@ The collection log comparison table displays all items that players have obtaine
 
 - **Primary API**: [RuneLite Player Data API](https://sync.runescape.wiki/runelite/player/{username}/STANDARD)
 - **Item Icons**: [OSRS Wiki](https://oldschool.runescape.wiki/)
+- **Music Tracks**: [OSRS Wiki Music page](https://oldschool.runescape.wiki/w/Music)
+- **Quests**: [OSRS Wiki Quests/List](https://oldschool.runescape.wiki/w/Quests/List)
 - **Data Types Collected**:
   - Quests (not started: 0, in progress: 1, completed: 2)
   - Skill levels (1-99+)

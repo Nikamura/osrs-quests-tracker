@@ -12,7 +12,9 @@
     "cron": "npm run fetch-data && npm run cleanup && npm run generate",
     "fetch-combat-achievements": "node fetch_combat_achievements.js",
     "fetch-collection-log": "node fetch_collection_log.js",
-    "fetch-game-data": "npm run fetch-combat-achievements && npm run fetch-collection-log"
+    "fetch-music-tracks": "node fetch_music_tracks.js",
+    "fetch-quests": "node fetch_quests.js",
+    "fetch-game-data": "npm run fetch-combat-achievements && npm run fetch-collection-log && npm run fetch-music-tracks && npm run fetch-quests"
   },
   "keywords": [],
   "author": "",
