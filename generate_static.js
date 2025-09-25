@@ -3,6 +3,21 @@ import path from "node:path";
 import https from "node:https";
 import { PLAYER_CONFIG, CHART_COLORS } from "./config.js";
 
+// Keep only the latest entry per calendar day (Europe/Vilnius)
+function groupLatestPerDay(entries) {
+  if (!Array.isArray(entries) || entries.length === 0) return entries;
+  const byDay = new Map();
+  for (const entry of entries) {
+    const ts = new Date(entry.timestamp);
+    const dayKey = ts.toLocaleDateString('en-CA', { timeZone: 'Europe/Vilnius' }); // YYYY-MM-DD
+    const existing = byDay.get(dayKey);
+    if (!existing || ts > new Date(existing.timestamp)) {
+      byDay.set(dayKey, entry);
+    }
+  }
+  return [...byDay.values()].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+}
+
 function getDisplayName(playerDir) {
   return PLAYER_CONFIG.displayNames[playerDir] || playerDir;
 }
@@ -764,6 +779,8 @@ function getPlayerData() {
       });
     }
     playerData[player].sort((a, b) => a.timestamp - b.timestamp);
+    // Keep only latest sample per day
+    playerData[player] = groupLatestPerDay(playerData[player]);
   }
 
   return playerData;
@@ -795,6 +812,8 @@ function getTotalLevelProgressData() {
       });
     }
     playerData[player].sort((a, b) => a.timestamp - b.timestamp);
+    // Keep only latest sample per day
+    playerData[player] = groupLatestPerDay(playerData[player]);
   }
 
   return playerData;
@@ -828,6 +847,8 @@ function getSkillLevelProgressData() {
       });
     }
     playerData[player].sort((a, b) => a.timestamp - b.timestamp);
+    // Keep only latest sample per day
+    playerData[player] = groupLatestPerDay(playerData[player]);
   }
 
   return {
@@ -1633,6 +1654,8 @@ function getTotalExpProgressData() {
       }
     }
     playerData[player].sort((a, b) => a.timestamp - b.timestamp);
+    // Keep only latest sample per day
+    playerData[player] = groupLatestPerDay(playerData[player]);
   }
 
   return playerData;

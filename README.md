@@ -19,7 +19,7 @@ A comprehensive tool to track Old School RuneScape (OSRS) progress for a group o
   - League tasks
 - **Data Storage**: Stores timestamped JSON files for historical tracking
 - **Data Cleanup**: Automated removal of duplicate consecutive data snapshots
-- **Real-time Data Display**: All data points are displayed without aggregation or bucketing for maximum detail
+- **Daily Aggregation for Charts**: Time-series graphs (Quests, Total Level, Skill Level, Total XP) now keep only the latest sample per player per day (Europe/Vilnius). This reduces visual noise while preserving daily progress. Tables remain unaggregated.
 
 ### Web Interface
 - **Interactive Dashboard**: Windows 98-style UI with draggable, minimizable, and closable windows
@@ -224,7 +224,7 @@ Display names are mapped in `generate_static.js` for better readability in the i
 - Recent Achievements & Progress: includes collection items when previous counts were null, and adds music unlock achievements.
 - **Total XP Scale Toggle Button**: The toggle is now a button inside the Total XP window (label: "Log scale: On/Off"). Preference persists in localStorage and applies immediately.
 - **CSS Refactoring**: Extracted all inline CSS from `generate_static.js` into a separate `public/styles.css` file for better maintainability and code organization. The HTML template now references the external stylesheet.
-- **Removed Data Aggregation**: Eliminated date bucketing and grouping logic from charts. All data points are now displayed at full resolution without any aggregation or maxing operations, providing maximum detail in progress tracking.
+- **Daily Graph Aggregation**: Charts show at most one point per day per player, using the latest snapshot for that day in Europe/Vilnius timezone. Interactive tables are unaffected and still show full detail.
 - **Fixed Recent Achievements Table Styling**: Resolved inconsistent text styling where some rows appeared bold and others didn't. All rows now have consistent styling with a subtle left border indicator for achievements within the last 24 hours.
 - **Music Tracks Totals Row**: Added a sticky totals row to the Music Tracks comparison showing the number of unlocked tracks per player, with top 3 rankings. Totals and rankings dynamically update with player selection filters.
 
