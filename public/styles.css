@@ -406,6 +406,16 @@ tr.completed-by-one {
   z-index: 5;
 }
 
+/* Music tracks totals sticky */
+.music-tracks-table .music-tracks-total-row td {
+  position: sticky;
+  bottom: 0;
+  background: #f0f0f0;
+  font-weight: bold;
+  border-top: 3px solid #000;
+  z-index: 5;
+}
+
 /* Activities comparison styles */
 .activities-comparison-table .activities-total-row td {
   position: sticky;

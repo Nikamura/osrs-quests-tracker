@@ -217,6 +217,7 @@ Display names are mapped in `generate_static.js` for better readability in the i
 - **CSS Refactoring**: Extracted all inline CSS from `generate_static.js` into a separate `public/styles.css` file for better maintainability and code organization. The HTML template now references the external stylesheet.
 - **Removed Data Aggregation**: Eliminated date bucketing and grouping logic from charts. All data points are now displayed at full resolution without any aggregation or maxing operations, providing maximum detail in progress tracking.
 - **Fixed Recent Achievements Table Styling**: Resolved inconsistent text styling where some rows appeared bold and others didn't. All rows now have consistent styling with a subtle left border indicator for achievements within the last 24 hours.
+- **Music Tracks Totals Row**: Added a sticky totals row to the Music Tracks comparison showing the number of unlocked tracks per player, with top 3 rankings. Totals and rankings dynamically update with player selection filters.
 
 ### Previous Features
 - Interactive dashboard with Windows 98-style UI

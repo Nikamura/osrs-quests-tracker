@@ -536,7 +536,7 @@ function generateMusicTracksComparisonTable(comparisonData) {
   }
 
   let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
-  tableHtml += '<table class="interactive" style="width: 100%;">';
+  tableHtml += '<table class="interactive music-tracks-table" style="width: 100%;">';
 
   // Header
   tableHtml += '<thead><tr><th>Music Track</th>';
@@ -580,6 +580,46 @@ function generateMusicTracksComparisonTable(comparisonData) {
     }
     tableHtml += '</tr>';
   }
+
+  // Add total music tracks row
+  tableHtml += '<tr class="music-tracks-total-row">';
+  tableHtml += '<td style="font-size: 1.1em; font-weight: bold;">Total Tracks</td>';
+
+  // Calculate total unlocked tracks for each player
+  const totalTracks = players.map(player => {
+    const tracksObj = playerMusicTracks[player] || {};
+    const total = Object.values(tracksObj).reduce((sum, unlocked) => sum + (unlocked === true ? 1 : 0), 0);
+    return { player, total };
+  });
+
+  // Sort totals to determine rankings
+  const sortedTotals = [...totalTracks].sort((a, b) => b.total - a.total);
+  const totalRankings = {};
+  let currentRank = 1;
+  for (let i = 0; i < sortedTotals.length; i++) {
+    const { player, total } = sortedTotals[i];
+    if (i > 0 && sortedTotals[i - 1].total > total) {
+      currentRank = i + 1;
+    }
+    totalRankings[player] = currentRank;
+  }
+
+  // Render total cells with ranking classes
+  for (const player of players) {
+    const total = totalTracks.find(t => t.player === player)?.total ?? 0;
+
+    let rankingClass = '';
+    if (total > 0) {
+      const rank = totalRankings[player];
+      if (rank === 1) rankingClass = ' rank-1st';
+      else if (rank === 2) rankingClass = ' rank-2nd';
+      else if (rank === 3) rankingClass = ' rank-3rd';
+    }
+
+    tableHtml += `<td class="level-cell${rankingClass}" data-player="${player}" data-total="${total}" style="font-size: 1.1em; text-align: center;">${total}</td>`;
+  }
+  tableHtml += '</tr>';
+
   tableHtml += '</tbody></table></div>';
 
   return tableHtml;
@@ -2484,6 +2524,63 @@ async function generateStaticHTML() {
       if (!table) return;
 
       updateTable(table, selectedPlayers, 'music');
+      updateMusicTotalsRankings(table, selectedPlayers);
+    }
+
+    function updateMusicTotalsRankings(table, selectedPlayers) {
+      // The total row is the last one in tbody
+      const totalRow = table.querySelector('tbody tr:last-child');
+      if (!totalRow || !totalRow.classList.contains('music-tracks-total-row')) return;
+
+      const cells = totalRow.querySelectorAll('td');
+      if (cells.length < 2) return; // need at least name and one player
+
+      // Skip the first cell ("Total Tracks")
+      const totalCells = Array.from(cells).slice(1);
+
+      // Get totals for selected players only
+      const selectedTotals = [];
+      totalCells.forEach(cell => {
+        const playerData = cell.dataset.player;
+        if (!playerData) return;
+        const total = parseInt(cell.dataset.total) || 0;
+
+        if (selectedPlayers.includes(playerData)) {
+          selectedTotals.push({
+            cell: cell,
+            player: playerData,
+            total: total,
+          });
+        }
+      });
+
+      // Sort by total (highest first) and assign rankings
+      const sortedTotals = [...selectedTotals].sort((a, b) => b.total - a.total);
+      const rankings = {};
+      let currentRank = 1;
+
+      for (let i = 0; i < sortedTotals.length; i++) {
+        const { player, total } = sortedTotals[i];
+        if (i > 0 && sortedTotals[i - 1].total > total) {
+          currentRank = i + 1;
+        }
+        rankings[player] = currentRank;
+      }
+
+      // Clear all ranking classes first
+      totalCells.forEach(cell => {
+        cell.classList.remove('rank-1st', 'rank-2nd', 'rank-3rd');
+      });
+
+      // Apply ranking classes to selected players only
+      selectedTotals.forEach(({ cell, player, total }) => {
+        if (total > 0) {
+          const rank = rankings[player];
+          if (rank === 1) cell.classList.add('rank-1st');
+          else if (rank === 2) cell.classList.add('rank-2nd');
+          else if (rank === 3) cell.classList.add('rank-3rd');
+        }
+      });
     }
 
     function updateCollectionLogTable(selectedPlayers) {
