@@ -1123,7 +1123,11 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
                 name: `${skillName} (${previousLevel} → ${currentLevel})`,
                 timestamp: currentTimestamp,
                 previousTimestamp: previousTimestamp,
-                displayName: getDisplayName(player)
+                displayName: getDisplayName(player),
+                // Mark special milestone when reaching level 99
+                isMaxLevel: currentLevel >= 99 && previousLevel < 99,
+                skill: skillName,
+                newLevel: currentLevel
               });
             }
           }
@@ -1400,6 +1404,13 @@ function generateAchievementsTable(achievementsData) {
       tableHtml += `<img src="${achievement.activityIcon}" alt="${achievement.name}" width="20" height="20" style="image-rendering: pixelated;" onerror="this.src='https://oldschool.runescape.wiki/images/Bank_filler.png'">`;
       tableHtml += `<a href="${achievement.activityLink}" target="_blank" style="text-decoration: none; color: inherit;">${achievement.name}</a>`;
       tableHtml += `</td>`;
+    } else if (achievement.type === 'level' && achievement.isMaxLevel) {
+      // Highlight level 99 milestones with a golden badge and star
+      tableHtml += `<td style="display: flex; align-items: center; gap: 8px;">` +
+        `<span title="Level 99!" style="color: #FFD700;">⭐</span>` +
+        `<span class="badge-99" style="background: #FFD700; color: #000; padding: 2px 6px; border-radius: 3px; font-weight: bold;">99</span>` +
+        `<span>${achievement.name}</span>` +
+        `</td>`;
     } else {
       tableHtml += `<td>${achievement.name}</td>`;
     }

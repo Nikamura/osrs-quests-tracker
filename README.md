@@ -227,6 +227,7 @@ Display names are mapped in `generate_static.js` for better readability in the i
 - **Daily Graph Aggregation**: Charts show at most one point per day per player, using the latest snapshot for that day in Europe/Vilnius timezone. Interactive tables are unaffected and still show full detail.
 - **Fixed Recent Achievements Table Styling**: Resolved inconsistent text styling where some rows appeared bold and others didn't. All rows now have consistent styling with a subtle left border indicator for achievements within the last 24 hours.
 - **Music Tracks Totals Row**: Added a sticky totals row to the Music Tracks comparison showing the number of unlocked tracks per player, with top 3 rankings. Totals and rankings dynamically update with player selection filters.
+ - **Level 99 Milestone Highlight**: Recent Achievements now marks hitting level 99 in any skill with a golden star and "99" badge for extra visibility.
 
 ### Previous Features
 - Interactive dashboard with Windows 98-style UI
