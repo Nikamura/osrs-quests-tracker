@@ -3,6 +3,37 @@ import path from "node:path";
 import https from "node:https";
 import { PLAYER_CONFIG, CHART_COLORS } from "./config.js";
 
+// Map alternate quest names from various data sources to canonical wiki names
+const QUEST_NAME_ALIASES = {
+  "Recipe for Disaster - Another Cook's Quest": "Recipe for Disaster/Another Cook's Quest",
+  "Recipe for Disaster - Culinaromancer": "Recipe for Disaster/Defeating the Culinaromancer",
+  "Recipe for Disaster - Evil Dave": "Recipe for Disaster/Freeing Evil Dave",
+  "Recipe for Disaster - King Awowogei": "Recipe for Disaster/Freeing King Awowogei",
+  "Recipe for Disaster - Lumbridge Guide": "Recipe for Disaster/Freeing the Lumbridge Guide",
+  "Recipe for Disaster - Mountain Dwarf": "Recipe for Disaster/Freeing the Mountain Dwarf",
+  "Recipe for Disaster - Pirate Pete": "Recipe for Disaster/Freeing Pirate Pete",
+  "Recipe for Disaster - Sir Amik Varze": "Recipe for Disaster/Freeing Sir Amik Varze",
+  "Recipe for Disaster - Skrach Uglogwee": "Recipe for Disaster/Freeing Skrach Uglogwee",
+  "Recipe for Disaster - Wartface & Bentnoze": "Recipe for Disaster/Freeing the Goblin generals"
+};
+
+function normalizeQuestName(questName) {
+  return QUEST_NAME_ALIASES[questName] || questName;
+}
+
+function normalizeQuestStatuses(quests) {
+  if (!quests) return {};
+  const normalized = {};
+  for (const [questName, status] of Object.entries(quests)) {
+    const canonicalName = normalizeQuestName(questName);
+    // Preserve the highest status in case both alias and canonical entries exist
+    if (normalized[canonicalName] === undefined || status > normalized[canonicalName]) {
+      normalized[canonicalName] = status;
+    }
+  }
+  return normalized;
+}
+
 // Keep only the latest entry per calendar day (Europe/Vilnius)
 function groupLatestPerDay(entries) {
   if (!Array.isArray(entries) || entries.length === 0) return entries;
@@ -27,6 +58,8 @@ function getQuestComparisonData() {
   const latestPlayerData = {};
   const allQuests = new Set();
   let questMetaByName = {};
+  let knownQuestNames = null;
+  let questCapeRequiredNames = null;
 
   try {
     const questsJson = readFileSync("game_data/quests.json", "utf-8");
@@ -35,9 +68,16 @@ function getQuestComparisonData() {
       acc[q.name] = q;
       return acc;
     }, {});
+    knownQuestNames = new Set(quests.map(q => q.name));
+    questCapeRequiredNames = new Set(quests.filter(q => !q.isMiniquest).map(q => q.name));
   } catch (e) {
     console.warn('Quests metadata not found or invalid, quest links will be plain text.');
   }
+
+  const isKnownQuest = (questName) => {
+    if (!knownQuestNames) return true;
+    return knownQuestNames.has(questName);
+  };
 
   for (const player of players) {
     const playerDir = path.join("player_data", player);
@@ -48,15 +88,24 @@ function getQuestComparisonData() {
     const filePath = path.join(playerDir, latestFile);
     const data = JSON.parse(readFileSync(filePath, "utf-8"));
 
-    latestPlayerData[player] = data.quests;
-    Object.keys(data.quests).forEach(quest => allQuests.add(quest));
+    const normalizedQuests = normalizeQuestStatuses(data.quests);
+    for (const questName of Object.keys(normalizedQuests)) {
+      if (!isKnownQuest(questName)) {
+        delete normalizedQuests[questName];
+        continue;
+      }
+      allQuests.add(questName);
+    }
+
+    latestPlayerData[player] = normalizedQuests;
   }
 
   return {
     players: Object.keys(latestPlayerData).sort(),
     quests: [...allQuests].sort(),
     playerQuests: latestPlayerData,
-    questMetaByName
+    questMetaByName,
+    questCapeRequiredNames
   };
 }
 
@@ -1048,6 +1097,22 @@ function generateSkillLevelChartData(playerData, selectedSkill) {
 function getAchievementsData(combatAchievementsData, collectionLogData, musicTracksData) {
   const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
   const allAchievements = [];
+  let knownQuestNames = null;
+  let questCapeRequiredNames = null;
+
+  try {
+    const questsJson = readFileSync("game_data/quests.json", "utf-8");
+    const quests = JSON.parse(questsJson);
+    knownQuestNames = new Set(quests.map(q => q.name));
+    questCapeRequiredNames = new Set(quests.filter(q => !q.isMiniquest).map(q => q.name));
+  } catch (error) {
+    console.warn('Quests metadata not found or invalid while building achievements.');
+  }
+
+  const isKnownQuest = (questName) => {
+    if (!knownQuestNames) return true;
+    return knownQuestNames.has(questName);
+  };
 
   for (const player of players) {
     const playerDir = path.join("player_data", player);
@@ -1066,10 +1131,16 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
         const currentTimestamp = new Date(currentFile.split('_')[1].replace('.json', ''));
         const previousTimestamp = new Date(previousFile.split('_')[1].replace('.json', ''));
 
+        const currentQuests = normalizeQuestStatuses(currentData.quests);
+        const previousQuests = normalizeQuestStatuses(previousData.quests);
+
         // Check for quest completions
         if (currentData.quests && previousData.quests) {
-          for (const [questName, currentStatus] of Object.entries(currentData.quests)) {
-            const previousStatus = previousData.quests[questName] || 0;
+          for (const [questName, currentStatus] of Object.entries(currentQuests)) {
+            if (!isKnownQuest(questName)) {
+              continue;
+            }
+            const previousStatus = previousQuests[questName] || 0;
             if (previousStatus !== 2 && currentStatus === 2) {
               allAchievements.push({
                 player: player,
@@ -1077,9 +1148,40 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
                 name: questName,
                 timestamp: currentTimestamp,
                 previousTimestamp: previousTimestamp,
-                displayName: getDisplayName(player)
+                displayName: getDisplayName(player),
+                isMajorAchievement: false
               });
             }
+          }
+
+          let questCapeQuestNames = null;
+          if (questCapeRequiredNames && questCapeRequiredNames.size > 0) {
+            questCapeQuestNames = questCapeRequiredNames;
+          } else {
+            questCapeQuestNames = new Set(Object.keys(currentQuests).filter(isKnownQuest));
+          }
+
+          const requiredQuestNames = [...questCapeQuestNames];
+
+          const hasQuestCapeNow = requiredQuestNames.length > 0 && requiredQuestNames.every(questName => {
+            return currentQuests[questName] === 2;
+          });
+
+          const hadQuestCapeBefore = requiredQuestNames.length > 0 && requiredQuestNames.every(questName => {
+            return previousQuests[questName] === 2;
+          });
+
+          if (hasQuestCapeNow && !hadQuestCapeBefore) {
+            allAchievements.push({
+              player: player,
+              type: 'quest',
+              name: 'Quest Cape (All quests complete)',
+              timestamp: currentTimestamp,
+              previousTimestamp: previousTimestamp,
+              displayName: getDisplayName(player),
+              isQuestCape: true,
+              isMajorAchievement: true
+            });
           }
         }
 
@@ -1102,7 +1204,8 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
                         name: `${diaryName} ${difficulty}`,
                         timestamp: currentTimestamp,
                         previousTimestamp: previousTimestamp,
-                        displayName: getDisplayName(player)
+                        displayName: getDisplayName(player),
+                        isMajorAchievement: false
                       });
                     }
                   }
@@ -1117,6 +1220,7 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
           for (const [skillName, currentLevel] of Object.entries(currentData.levels)) {
             const previousLevel = previousData.levels[skillName] || 1;
             if (currentLevel > previousLevel) {
+              const isMaxLevel = currentLevel >= 99 && previousLevel < 99;
               allAchievements.push({
                 player: player,
                 type: 'level',
@@ -1125,9 +1229,10 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
                 previousTimestamp: previousTimestamp,
                 displayName: getDisplayName(player),
                 // Mark special milestone when reaching level 99
-                isMaxLevel: currentLevel >= 99 && previousLevel < 99,
+                isMaxLevel: isMaxLevel,
                 skill: skillName,
-                newLevel: currentLevel
+                newLevel: currentLevel,
+                isMajorAchievement: isMaxLevel
               });
             }
           }
@@ -1154,7 +1259,8 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
                 description: achievementData.description,
                 timestamp: currentTimestamp,
                 previousTimestamp: previousTimestamp,
-                displayName: getDisplayName(player)
+                displayName: getDisplayName(player),
+                isMajorAchievement: false
               });
             }
           }
@@ -1198,7 +1304,8 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
                 itemLink: itemData.itemLink,
                 timestamp: currentTimestamp,
                 previousTimestamp: previousTimestamp,
-                displayName: getDisplayName(player)
+                displayName: getDisplayName(player),
+                isMajorAchievement: false
               });
             }
           }
@@ -1218,7 +1325,8 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
                 nameWikiLink: meta?.nameWikiLink,
                 timestamp: currentTimestamp,
                 previousTimestamp: previousTimestamp,
-                displayName: getDisplayName(player)
+                displayName: getDisplayName(player),
+                isMajorAchievement: false
               });
             }
           }
@@ -1235,7 +1343,8 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
               name: `League Task (${previousCount} → ${currentCount} completed)`,
               timestamp: currentTimestamp,
               previousTimestamp: previousTimestamp,
-              displayName: getDisplayName(player)
+              displayName: getDisplayName(player),
+              isMajorAchievement: false
             });
           }
         }
@@ -1254,7 +1363,8 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
                 name: previousScore === -1 ? `${activityName} (Score: ${currentScore})` : `${activityName} (${previousScore} -> ${currentScore})`,
                 timestamp: currentTimestamp,
                 previousTimestamp: previousTimestamp,
-                displayName: getDisplayName(player)
+                displayName: getDisplayName(player),
+                isMajorAchievement: false
               });
             }
           }
@@ -1290,6 +1400,7 @@ function generateAchievementsTable(achievementsData) {
   const playerStats = {};
   const typeStats = {};
   const playerColors = PLAYER_CONFIG.colors;
+  const majorAchievementsCount = achievementsData.filter(achievement => achievement.isMajorAchievement).length;
 
   for (const achievement of achievementsData) {
     // Player stats
@@ -1337,6 +1448,15 @@ function generateAchievementsTable(achievementsData) {
 
   tableHtml += '</div>';
 
+  const majorButtonLabel = majorAchievementsCount > 0
+    ? `Show Only Major Achievements (${majorAchievementsCount})`
+    : 'No Major Achievements Yet';
+
+  tableHtml += '<div class="achievements-controls" style="display: flex; gap: 12px; align-items: center; margin-bottom: 15px;">';
+  tableHtml += `<button id="toggle-major-achievements" type="button" data-filter-state="all"${majorAchievementsCount === 0 ? ' disabled' : ''}>${majorButtonLabel}</button>`;
+  tableHtml += '<span id="major-achievements-hint" style="font-size: 0.85em; color: #555;">Major achievements cover new level 99 skills and freshly earned quest capes.</span>';
+  tableHtml += '</div>';
+
   // Achievements table
   tableHtml += '<table class="interactive" style="width: 100%;">';
 
@@ -1356,6 +1476,8 @@ function generateAchievementsTable(achievementsData) {
     if (timeDiff < 1000 * 60 * 60 * 24) { // Less than 24 hours
       rowStyle += ` border-left: 4px solid ${playerColor};`;
     }
+
+    const isMajor = achievement.isMajorAchievement === true;
 
     // Format date as relative time
     const now = new Date();
@@ -1383,7 +1505,7 @@ function generateAchievementsTable(achievementsData) {
       });
     }
 
-    tableHtml += `<tr style="${rowStyle}">`;
+    tableHtml += `<tr style="${rowStyle}" data-is-major="${isMajor ? 'true' : 'false'}">`;
     tableHtml += `<td><strong style="color: ${playerColor};">${achievement.displayName}</strong></td>`;
 
     // Handle combat achievements with tier icons and links
@@ -2172,6 +2294,7 @@ async function generateStaticHTML() {
     let totalLevelChart = null;
     let totalExpChart = null;
     let skillLevelChart = null;
+    let showOnlyMajorAchievements = false;
 
     // Create player mapping objects from config
     const displayToPlayer = {};
@@ -2222,6 +2345,56 @@ async function generateStaticHTML() {
         saveTotalXpLogScalePreference(next);
         setLabel(next);
         applyTotalXpScale(next);
+      });
+    }
+
+    function updateAchievementsFilterButtonLabel() {
+      const toggleButton = document.getElementById('toggle-major-achievements');
+      if (!toggleButton || toggleButton.disabled) {
+        return;
+      }
+
+      let achievementsTable = null;
+      const windows = document.querySelectorAll('.window');
+      for (const window of windows) {
+        const titleText = window.querySelector('.title-bar-text');
+        if (titleText && titleText.textContent.includes('Recent Achievements')) {
+          achievementsTable = window.querySelector('table');
+          break;
+        }
+      }
+
+      let totalMajor = 0;
+      if (achievementsTable) {
+        const majorRows = achievementsTable.querySelectorAll('tbody tr[data-is-major="true"]');
+        totalMajor = Array.from(majorRows).filter(row => row.style.display !== 'none').length;
+      }
+
+      if (showOnlyMajorAchievements) {
+        toggleButton.textContent = totalMajor > 0
+          ? 'Show All Achievements (' + totalMajor + ' major highlighted)'
+          : 'Show All Achievements';
+      } else {
+        toggleButton.textContent = totalMajor > 0
+          ? 'Show Only Major Achievements (' + totalMajor + ')'
+          : 'No Major Achievements Yet';
+      }
+    }
+
+    function initializeAchievementsFilter() {
+      const toggleButton = document.getElementById('toggle-major-achievements');
+      if (!toggleButton || toggleButton.disabled) {
+        return;
+      }
+
+      updateAchievementsFilterButtonLabel();
+
+      toggleButton.addEventListener('click', function() {
+        showOnlyMajorAchievements = !showOnlyMajorAchievements;
+        toggleButton.dataset.filterState = showOnlyMajorAchievements ? 'major' : 'all';
+        const selectedPlayers = getSelectedPlayers();
+        updateAchievementsTable(selectedPlayers);
+        updateAchievementsFilterButtonLabel();
       });
     }
 
@@ -3031,13 +3204,14 @@ async function generateStaticHTML() {
           // Use global displayToPlayer mapping
 
           const playerKey = displayToPlayer[playerName];
-          if (playerKey && selectedPlayers.includes(playerKey)) {
-            row.style.display = '';
-          } else {
-            row.style.display = 'none';
-          }
+          const matchesPlayer = playerKey && selectedPlayers.includes(playerKey);
+          const isMajor = row.dataset.isMajor === 'true';
+          const matchesMajorFilter = !showOnlyMajorAchievements || isMajor;
+          row.style.display = matchesPlayer && matchesMajorFilter ? '' : 'none';
         }
       });
+
+      updateAchievementsFilterButtonLabel();
     }
 
     function updateActivitiesTable(selectedPlayers) {
@@ -3465,6 +3639,7 @@ async function generateStaticHTML() {
       // Initialize interactive features
       initializeDragAndDrop();
       initializeTotalXpScaleButton();
+      initializeAchievementsFilter();
 
       // Small delay to ensure all DOM updates are applied
       setTimeout(() => {
