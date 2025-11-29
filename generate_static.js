@@ -1856,6 +1856,11 @@ function generateTotalExpChartData(playerData) {
   };
 }
 
+// Activities to exclude from the comparison table
+const IGNORED_ACTIVITIES = new Set([
+  "PvP Arena - Rank"
+]);
+
 function getActivitiesComparisonData() {
   const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
   const latestPlayerData = {};
@@ -1873,7 +1878,7 @@ function getActivitiesComparisonData() {
     if (data.activities && Array.isArray(data.activities)) {
       const playerActivities = {};
       data.activities.forEach(activity => {
-        if (activity.score > -1) {
+        if (activity.score > -1 && !IGNORED_ACTIVITIES.has(activity.name)) {
           playerActivities[activity.name] = activity.score;
           allActivities.add(activity.name);
         }
