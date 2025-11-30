@@ -1858,7 +1858,11 @@ function generateTotalExpChartData(playerData) {
 
 // Activities to exclude from the comparison table
 const IGNORED_ACTIVITIES = new Set([
-  "PvP Arena - Rank"
+  "PvP Arena - Rank",
+  "LMS - Rank",
+  "League Points",
+  "Soul Wars Zeal",
+  "Collections Logged"
 ]);
 
 function getActivitiesComparisonData() {
