@@ -2,6 +2,23 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import path from "node:path";
 import https from "node:https";
 import { PLAYER_CONFIG, CHART_COLORS } from "./config.js";
+import {
+  loadCacheIndex,
+  saveCacheIndex,
+  loadCacheData,
+  saveCacheData,
+  getPlayerList,
+  loadAllPlayerData,
+  loadAllSnapshotsForPlayer,
+  getNewFilesForPlayer,
+  loadGameData
+} from "./cache.js";
+
+// Parse command line flags
+const USE_CACHE = !process.argv.includes('--no-cache');
+if (!USE_CACHE) {
+  console.log('Cache disabled via --no-cache flag');
+}
 
 // Map alternate quest names from various data sources to canonical wiki names
 const QUEST_NAME_ALIASES = {
@@ -53,40 +70,18 @@ function getDisplayName(playerDir) {
   return PLAYER_CONFIG.displayNames[playerDir] || playerDir;
 }
 
-function getQuestComparisonData() {
-  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
+function getQuestComparisonData(playerDataMap, gameData) {
   const latestPlayerData = {};
   const allQuests = new Set();
-  let questMetaByName = {};
-  let knownQuestNames = null;
-  let questCapeRequiredNames = null;
-
-  try {
-    const questsJson = readFileSync("game_data/quests.json", "utf-8");
-    const quests = JSON.parse(questsJson);
-    questMetaByName = quests.reduce((acc, q) => {
-      acc[q.name] = q;
-      return acc;
-    }, {});
-    knownQuestNames = new Set(quests.map(q => q.name));
-    questCapeRequiredNames = new Set(quests.filter(q => !q.isMiniquest).map(q => q.name));
-  } catch (e) {
-    console.warn('Quests metadata not found or invalid, quest links will be plain text.');
-  }
+  const { questMetaByName, knownQuestNames, questCapeRequiredNames } = gameData;
 
   const isKnownQuest = (questName) => {
     if (!knownQuestNames) return true;
     return knownQuestNames.has(questName);
   };
 
-  for (const player of players) {
-    const playerDir = path.join("player_data", player);
-    const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
-    if (files.length === 0) continue;
-
-    const latestFile = files.sort().pop();
-    const filePath = path.join(playerDir, latestFile);
-    const data = JSON.parse(readFileSync(filePath, "utf-8"));
+  for (const [player, playerInfo] of Object.entries(playerDataMap)) {
+    const data = playerInfo.latestData;
 
     const normalizedQuests = normalizeQuestStatuses(data.quests);
     for (const questName of Object.keys(normalizedQuests)) {
@@ -193,19 +188,12 @@ function generateQuestComparisonTable(comparisonData) {
   return tableHtml;
 }
 
-function getLevelComparisonData() {
-  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
+function getLevelComparisonData(playerDataMap) {
   const latestPlayerData = {};
   const allSkills = new Set();
 
-  for (const player of players) {
-    const playerDir = path.join("player_data", player);
-    const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
-    if (files.length === 0) continue;
-
-    const latestFile = files.sort().pop();
-    const filePath = path.join(playerDir, latestFile);
-    const data = JSON.parse(readFileSync(filePath, "utf-8"));
+  for (const [player, playerInfo] of Object.entries(playerDataMap)) {
+    const data = playerInfo.latestData;
 
     if (data.levels) {
       latestPlayerData[player] = data.levels;
@@ -328,19 +316,12 @@ function generateLevelComparisonTable(comparisonData) {
   return tableHtml;
 }
 
-function getAchievementDiaryComparisonData() {
-  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
+function getAchievementDiaryComparisonData(playerDataMap) {
   const latestPlayerData = {};
   const allAchievements = new Set();
 
-  for (const player of players) {
-    const playerDir = path.join("player_data", player);
-    const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
-    if (files.length === 0) continue;
-
-    const latestFile = files.sort().pop();
-    const filePath = path.join(playerDir, latestFile);
-    const data = JSON.parse(readFileSync(filePath, "utf-8"));
+  for (const [player, playerInfo] of Object.entries(playerDataMap)) {
+    const data = playerInfo.latestData;
 
     if (data.achievement_diaries) {
       latestPlayerData[player] = data.achievement_diaries;
@@ -476,61 +457,11 @@ function generateAchievementDiaryComparisonTable(comparisonData) {
   return tableHtml;
 }
 
-function loadCombatAchievementsData() {
-  let combatAchievementsData = {};
-  try {
-    const combatAchievementsFile = readFileSync("game_data/combat_achievements.json", "utf-8");
-    const combatAchievements = JSON.parse(combatAchievementsFile);
-    combatAchievements.forEach(achievement => {
-      combatAchievementsData[achievement.taskId] = achievement;
-    });
-  } catch (error) {
-    console.error('Error loading combat achievements data:', error);
-  }
-  return combatAchievementsData;
-}
-
-function loadCollectionLogData() {
-  let collectionLogData = {};
-  try {
-    const collectionLogFile = readFileSync("game_data/collection_log.json", "utf-8");
-    const collectionLogItems = JSON.parse(collectionLogFile);
-    collectionLogItems.forEach(item => {
-      collectionLogData[item.itemId] = item;
-    });
-  } catch (error) {
-    console.error('Error loading collection log data:', error);
-  }
-  return collectionLogData;
-}
-
-function loadMusicTracksData() {
-  let musicTracksData = {};
-  try {
-    const musicTracksFile = readFileSync("game_data/music_tracks.json", "utf-8");
-    const tracks = JSON.parse(musicTracksFile);
-    tracks.forEach(track => {
-      // Key by name for lookup
-      musicTracksData[track.name] = track;
-    });
-  } catch (error) {
-    console.error('Error loading music tracks data:', error);
-  }
-  return musicTracksData;
-}
-
-function getCombatAchievementsComparisonData(combatAchievementsData) {
-  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
+function getCombatAchievementsComparisonData(playerDataMap, combatAchievementsData) {
   const latestPlayerData = {};
 
-  for (const player of players) {
-    const playerDir = path.join("player_data", player);
-    const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
-    if (files.length === 0) continue;
-
-    const latestFile = files.sort().pop();
-    const filePath = path.join(playerDir, latestFile);
-    const data = JSON.parse(readFileSync(filePath, "utf-8"));
+  for (const [player, playerInfo] of Object.entries(playerDataMap)) {
+    const data = playerInfo.latestData;
 
     if (data.combat_achievements) {
       latestPlayerData[player] = data.combat_achievements;
@@ -680,19 +611,12 @@ function generateCombatAchievementsComparisonTable(comparisonData) {
   return tableHtml;
 }
 
-function getMusicTracksComparisonData() {
-  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
+function getMusicTracksComparisonData(playerDataMap) {
   const latestPlayerData = {};
   const allMusicTracks = new Set();
 
-  for (const player of players) {
-    const playerDir = path.join("player_data", player);
-    const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
-    if (files.length === 0) continue;
-
-    const latestFile = files.sort().pop();
-    const filePath = path.join(playerDir, latestFile);
-    const data = JSON.parse(readFileSync(filePath, "utf-8"));
+  for (const [player, playerInfo] of Object.entries(playerDataMap)) {
+    const data = playerInfo.latestData;
 
     if (data.music_tracks) {
       latestPlayerData[player] = data.music_tracks;
@@ -808,102 +732,151 @@ function generateMusicTracksComparisonTable(comparisonData, musicTracksData) {
   return tableHtml;
 }
 
-function getPlayerData() {
-  const players = readdirSync("player_data");
-  const playerData = {};
+/**
+ * Generate all chart data using pre-loaded player data with caching.
+ * Reads all snapshots once and extracts quest progress, level progress, exp progress, and skill levels.
+ */
+function generateAllChartData(playerDataMap, cacheIndex, gameData) {
+  // Try to load cached chart data
+  const cachedChartData = USE_CACHE ? loadCacheData('chart_data.json') : null;
 
-  for (const player of players) {
-    const playerDir = path.join("player_data", player);
-    const files = readdirSync(playerDir);
-    playerData[player] = [];
-
-    for (const file of files) {
-      const filePath = path.join(playerDir, file);
-      const data = JSON.parse(readFileSync(filePath, "utf-8"));
-      const completedQuests = Object.values(data.quests).filter(status => status === 2).length;
-      const timestamp = new Date(file.split('_')[1].replace('.json', ''));
-      playerData[player].push({
-        timestamp,
-        completedQuests
-      });
-    }
-    playerData[player].sort((a, b) => a.timestamp - b.timestamp);
-    // Keep only latest sample per day
-    playerData[player] = groupLatestPerDay(playerData[player]);
-  }
-
-  return playerData;
-}
-
-function getTotalLevelProgressData() {
-  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
-  const playerData = {};
-
-  for (const player of players) {
-    const playerDir = path.join("player_data", player);
-    const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
-    playerData[player] = [];
-
-    for (const file of files) {
-      const filePath = path.join(playerDir, file);
-      const data = JSON.parse(readFileSync(filePath, "utf-8"));
-      const timestamp = new Date(file.split('_')[1].replace('.json', ''));
-
-      // Calculate total level
-      let totalLevel = 0;
-      if (data.levels) {
-        totalLevel = Object.values(data.levels).reduce((sum, level) => sum + (level || 0), 0);
+  // Check if cache is valid (all players have same latest files as when cached)
+  let cacheValid = cachedChartData !== null;
+  if (cacheValid) {
+    for (const player of Object.keys(playerDataMap)) {
+      const cachedLatest = cacheIndex.players[player]?.latestFile;
+      const currentLatest = playerDataMap[player].latestFile;
+      if (cachedLatest !== currentLatest) {
+        cacheValid = false;
+        break;
       }
-
-      playerData[player].push({
-        timestamp,
-        totalLevel
-      });
     }
-    playerData[player].sort((a, b) => a.timestamp - b.timestamp);
-    // Keep only latest sample per day
-    playerData[player] = groupLatestPerDay(playerData[player]);
   }
 
-  return playerData;
-}
+  if (cacheValid && cachedChartData) {
+    console.log('Using cached chart data');
+    // Reconstruct Date objects from cached data
+    const chartData = reconstructChartData(cachedChartData.chartData);
+    const totalLevelChartData = reconstructChartData(cachedChartData.totalLevelChartData);
+    const totalExpChartData = reconstructChartData(cachedChartData.totalExpChartData);
 
-function getSkillLevelProgressData() {
-  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
-  const playerData = {};
+    // Reconstruct timestamps in skillLevelProgressData
+    const skillLevelProgressData = {
+      availableSkills: cachedChartData.skillLevelProgressData.availableSkills,
+      playerData: {}
+    };
+    for (const [player, entries] of Object.entries(cachedChartData.skillLevelProgressData.playerData)) {
+      skillLevelProgressData.playerData[player] = entries.map(entry => ({
+        ...entry,
+        timestamp: new Date(entry.timestamp)
+      }));
+    }
+
+    return {
+      chartData,
+      totalLevelChartData,
+      totalExpChartData,
+      skillLevelProgressData
+    };
+  }
+
+  console.log('Generating chart data from snapshots...');
+
+  // Process all files once for all chart types
+  const questProgressData = {};
+  const totalLevelProgressData = {};
+  const totalExpProgressData = {};
+  const skillLevelProgressData = {};
   const allSkills = new Set();
 
-  for (const player of players) {
-    const playerDir = path.join("player_data", player);
-    const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
-    playerData[player] = [];
+  for (const [player, playerInfo] of Object.entries(playerDataMap)) {
+    questProgressData[player] = [];
+    totalLevelProgressData[player] = [];
+    totalExpProgressData[player] = [];
+    skillLevelProgressData[player] = [];
 
-    for (const file of files) {
-      const filePath = path.join(playerDir, file);
-      const data = JSON.parse(readFileSync(filePath, "utf-8"));
-      const timestamp = new Date(file.split('_')[1].replace('.json', ''));
+    // Load all snapshots for this player
+    const snapshots = loadAllSnapshotsForPlayer(playerInfo);
 
-      // Store all skill levels for this timestamp
-      let skillLevels = {};
-      if (data.levels) {
-        Object.keys(data.levels).forEach(skill => allSkills.add(skill));
-        skillLevels = { ...data.levels };
+    for (const { filename, data } of snapshots) {
+      const timestamp = new Date(filename.split('_')[1].replace('.json', ''));
+
+      // Quest progress
+      if (data.quests) {
+        const completedQuests = Object.values(data.quests).filter(status => status === 2).length;
+        questProgressData[player].push({ timestamp, completedQuests });
       }
 
-      playerData[player].push({
-        timestamp,
-        skillLevels
-      });
+      // Total level progress
+      if (data.levels) {
+        const totalLevel = Object.values(data.levels).reduce((sum, level) => sum + (level || 0), 0);
+        totalLevelProgressData[player].push({ timestamp, totalLevel });
+      }
+
+      // Total exp progress
+      if (data.skills && Array.isArray(data.skills)) {
+        const overallSkill = data.skills.find(s => s.name === 'Overall');
+        if (overallSkill && overallSkill.xp > 0) {
+          totalExpProgressData[player].push({ timestamp, totalExp: overallSkill.xp });
+        }
+      }
+
+      // Skill level progress
+      if (data.levels) {
+        Object.keys(data.levels).forEach(skill => allSkills.add(skill));
+        skillLevelProgressData[player].push({ timestamp, skillLevels: { ...data.levels } });
+      }
     }
-    playerData[player].sort((a, b) => a.timestamp - b.timestamp);
-    // Keep only latest sample per day
-    playerData[player] = groupLatestPerDay(playerData[player]);
+
+    // Sort and aggregate to daily
+    questProgressData[player].sort((a, b) => a.timestamp - b.timestamp);
+    questProgressData[player] = groupLatestPerDay(questProgressData[player]);
+
+    totalLevelProgressData[player].sort((a, b) => a.timestamp - b.timestamp);
+    totalLevelProgressData[player] = groupLatestPerDay(totalLevelProgressData[player]);
+
+    totalExpProgressData[player].sort((a, b) => a.timestamp - b.timestamp);
+    totalExpProgressData[player] = groupLatestPerDay(totalExpProgressData[player]);
+
+    skillLevelProgressData[player].sort((a, b) => a.timestamp - b.timestamp);
+    skillLevelProgressData[player] = groupLatestPerDay(skillLevelProgressData[player]);
+  }
+
+  // Generate chart data
+  const chartData = generateChartData(questProgressData);
+  const totalLevelChartData = generateTotalLevelChartData(totalLevelProgressData);
+  const totalExpChartData = generateTotalExpChartData(totalExpProgressData);
+
+  // Cache the chart data
+  if (USE_CACHE) {
+    saveCacheData('chart_data.json', {
+      chartData,
+      totalLevelChartData,
+      totalExpChartData,
+      skillLevelProgressData: {
+        playerData: skillLevelProgressData,
+        availableSkills: [...allSkills].sort()
+      }
+    });
   }
 
   return {
-    playerData,
-    availableSkills: [...allSkills].sort()
+    chartData,
+    totalLevelChartData,
+    totalExpChartData,
+    skillLevelProgressData: {
+      playerData: skillLevelProgressData,
+      availableSkills: [...allSkills].sort()
+    }
   };
+}
+
+/**
+ * Reconstruct chart data from cache (no Date conversion needed since we store formatted strings)
+ */
+function reconstructChartData(chartData) {
+  // Chart data stores formatted strings, so no reconstruction needed
+  return chartData;
 }
 
 
@@ -1094,35 +1067,56 @@ function generateSkillLevelChartData(playerData, selectedSkill) {
   };
 }
 
-function getAchievementsData(combatAchievementsData, collectionLogData, musicTracksData) {
-  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
-  const allAchievements = [];
-  let knownQuestNames = null;
-  let questCapeRequiredNames = null;
+function getAchievementsData(playerDataMap, cacheIndex, gameData) {
+  const { combatAchievements: combatAchievementsData, collectionLog: collectionLogData, musicTracks: musicTracksData, knownQuestNames, questCapeRequiredNames } = gameData;
 
-  try {
-    const questsJson = readFileSync("game_data/quests.json", "utf-8");
-    const quests = JSON.parse(questsJson);
-    knownQuestNames = new Set(quests.map(q => q.name));
-    questCapeRequiredNames = new Set(quests.filter(q => !q.isMiniquest).map(q => q.name));
-  } catch (error) {
-    console.warn('Quests metadata not found or invalid while building achievements.');
+  // Load cached achievements
+  let cachedAchievements = USE_CACHE ? loadCacheData('achievements.json') : null;
+  if (!cachedAchievements) {
+    cachedAchievements = { achievements: [], processedFiles: {} };
   }
+
+  // Convert cached timestamps back to Date objects
+  const existingAchievements = cachedAchievements.achievements.map(a => ({
+    ...a,
+    timestamp: new Date(a.timestamp),
+    previousTimestamp: new Date(a.previousTimestamp)
+  }));
+
+  const newAchievements = [];
 
   const isKnownQuest = (questName) => {
     if (!knownQuestNames) return true;
     return knownQuestNames.has(questName);
   };
 
-  for (const player of players) {
-    const playerDir = path.join("player_data", player);
-    const files = readdirSync(playerDir).filter(f => f.endsWith('.json')).sort();
-    if (files.length === 0) continue;
+  for (const [player, playerInfo] of Object.entries(playerDataMap)) {
+    const { allFiles, playerDir } = playerInfo;
+    if (allFiles.length < 2) continue;
 
-    // Process all files to build complete achievement history
-    for (let i = 1; i < files.length; i++) {
-      const currentFile = files[i];
-      const previousFile = files[i - 1];
+    // Find which files we need to process (new files since last cache)
+    const cachedLastFile = cachedAchievements.processedFiles[player];
+    let startIndex = 1; // Default: process from second file
+
+    if (cachedLastFile) {
+      const cachedIdx = allFiles.indexOf(cachedLastFile);
+      if (cachedIdx !== -1) {
+        // Start processing from the file AFTER the cached one
+        startIndex = cachedIdx + 1;
+      }
+    }
+
+    // If no new files to process, skip this player
+    if (startIndex >= allFiles.length) {
+      continue;
+    }
+
+    console.log(`Processing ${allFiles.length - startIndex} new achievement files for ${player}`);
+
+    // Process file pairs starting from the first new file
+    for (let i = startIndex; i < allFiles.length; i++) {
+      const currentFile = allFiles[i];
+      const previousFile = allFiles[i - 1];
 
       try {
         const currentData = JSON.parse(readFileSync(path.join(playerDir, currentFile), "utf-8"));
@@ -1142,7 +1136,7 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
             }
             const previousStatus = previousQuests[questName] || 0;
             if (previousStatus !== 2 && currentStatus === 2) {
-              allAchievements.push({
+              newAchievements.push({
                 player: player,
                 type: 'quest',
                 name: questName,
@@ -1172,7 +1166,7 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
           });
 
           if (hasQuestCapeNow && !hadQuestCapeBefore) {
-            allAchievements.push({
+            newAchievements.push({
               player: player,
               type: 'quest',
               name: 'Quest Cape (All quests complete)',
@@ -1198,7 +1192,7 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
                     const isCompleted = Array.isArray(currentDifficulty.tasks) && currentDifficulty.tasks.length > 0 && currentDifficulty.tasks.every(task => task);
 
                     if (!wasCompleted && isCompleted) {
-                      allAchievements.push({
+                      newAchievements.push({
                         player: player,
                         type: 'diary',
                         name: `${diaryName} ${difficulty}`,
@@ -1221,14 +1215,13 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
             const previousLevel = previousData.levels[skillName] || 1;
             if (currentLevel > previousLevel) {
               const isMaxLevel = currentLevel >= 99 && previousLevel < 99;
-              allAchievements.push({
+              newAchievements.push({
                 player: player,
                 type: 'level',
                 name: `${skillName} (${previousLevel} → ${currentLevel})`,
                 timestamp: currentTimestamp,
                 previousTimestamp: previousTimestamp,
                 displayName: getDisplayName(player),
-                // Mark special milestone when reaching level 99
                 isMaxLevel: isMaxLevel,
                 skill: skillName,
                 newLevel: currentLevel,
@@ -1243,14 +1236,12 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
           const currentAchievements = new Set(currentData.combat_achievements);
           const previousAchievements = new Set(previousData.combat_achievements);
 
-          // Find newly completed achievements
-          const newAchievements = [...currentAchievements].filter(id => !previousAchievements.has(id));
+          const newCombatAchievements = [...currentAchievements].filter(id => !previousAchievements.has(id));
 
-          // Add each new achievement as a separate entry
-          for (const achievementId of newAchievements) {
+          for (const achievementId of newCombatAchievements) {
             const achievementData = combatAchievementsData[achievementId];
             if (achievementData) {
-              allAchievements.push({
+              newAchievements.push({
                 player: player,
                 type: 'combat',
                 name: achievementData.name,
@@ -1266,14 +1257,14 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
           }
         }
 
-        // Check for collection log progress (handle nulls as zero)
+        // Check for collection log progress
         if (currentData.collectionLogItemCount !== null && currentData.collectionLogItemCount !== undefined) {
           const currentCount = currentData.collectionLogItemCount;
           const previousCount = (previousData.collectionLogItemCount !== null && previousData.collectionLogItemCount !== undefined)
             ? previousData.collectionLogItemCount
             : (Array.isArray(previousData.collection_log) ? previousData.collection_log.length : 0);
           if (currentCount > previousCount) {
-            allAchievements.push({
+            newAchievements.push({
               player: player,
               type: 'collection',
               name: `Collection Log (${previousCount} → ${currentCount} items)`,
@@ -1284,19 +1275,17 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
           }
         }
 
-        // Check for individual collection log item completions (treat missing previous as empty)
+        // Check for individual collection log item completions
         if (currentData.collection_log) {
           const currentItems = new Set(currentData.collection_log);
           const previousItems = new Set(previousData.collection_log || []);
 
-          // Find newly obtained items
           const newItems = [...currentItems].filter(itemId => !previousItems.has(itemId));
 
-          // Add each new item as a separate entry
           for (const itemId of newItems) {
             const itemData = collectionLogData[itemId];
             if (itemData) {
-              allAchievements.push({
+              newAchievements.push({
                 player: player,
                 type: 'collection_item',
                 name: itemData.itemName,
@@ -1318,7 +1307,7 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
             const wasUnlocked = !!prevMusic[trackName];
             if (!wasUnlocked && isUnlocked === true) {
               const meta = musicTracksData ? musicTracksData[trackName] : null;
-              allAchievements.push({
+              newAchievements.push({
                 player: player,
                 type: 'music',
                 name: trackName,
@@ -1337,7 +1326,7 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
           const currentCount = currentData.league_tasks.length;
           const previousCount = previousData.league_tasks.length;
           if (currentCount > previousCount) {
-            allAchievements.push({
+            newAchievements.push({
               player: player,
               type: 'league',
               name: `League Task (${previousCount} → ${currentCount} completed)`,
@@ -1357,7 +1346,7 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
           for (const [activityName, currentScore] of currentActivitiesMap) {
             const previousScore = previousActivitiesMap.get(activityName) ?? -1;
             if (currentScore > previousScore) {
-              allAchievements.push({
+              newAchievements.push({
                 player: player,
                 type: 'activity',
                 name: previousScore === -1 ? `${activityName} (Score: ${currentScore})` : `${activityName} (${previousScore} -> ${currentScore})`,
@@ -1375,10 +1364,28 @@ function getAchievementsData(combatAchievementsData, collectionLogData, musicTra
         continue;
       }
     }
+
+    // Update processed files tracker
+    cachedAchievements.processedFiles[player] = allFiles[allFiles.length - 1];
   }
+
+  // Merge existing and new achievements
+  const allAchievements = [...existingAchievements, ...newAchievements];
 
   // Sort achievements by timestamp (most recent first)
   allAchievements.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+  // Save updated cache
+  if (USE_CACHE) {
+    saveCacheData('achievements.json', {
+      achievements: allAchievements.map(a => ({
+        ...a,
+        timestamp: a.timestamp.toISOString(),
+        previousTimestamp: a.previousTimestamp.toISOString()
+      })),
+      processedFiles: cachedAchievements.processedFiles
+    });
+  }
 
   // Filter to show only achievements from the last 30 days by default
   const thirtyDaysAgo = new Date();
@@ -1554,18 +1561,11 @@ function generateAchievementsTable(achievementsData) {
   return tableHtml;
 }
 
-function getCollectionLogComparisonData(collectionLogData) {
-  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
+function getCollectionLogComparisonData(playerDataMap, collectionLogData) {
   const latestPlayerData = {};
 
-  for (const player of players) {
-    const playerDir = path.join("player_data", player);
-    const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
-    if (files.length === 0) continue;
-
-    const latestFile = files.sort().pop();
-    const filePath = path.join(playerDir, latestFile);
-    const data = JSON.parse(readFileSync(filePath, "utf-8"));
+  for (const [player, playerInfo] of Object.entries(playerDataMap)) {
+    const data = playerInfo.latestData;
 
     if (data.collection_log) {
       latestPlayerData[player] = data.collection_log;
@@ -1757,43 +1757,6 @@ function generateWindowVisibilityUI() {
 
 // Chart Options UI removed from Configuration; control moved into Total XP window
 
-function getTotalExpProgressData() {
-  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
-  const playerData = {};
-
-  for (const player of players) {
-    const playerDir = path.join("player_data", player);
-    const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
-    playerData[player] = [];
-
-    for (const file of files) {
-      const filePath = path.join(playerDir, file);
-      const data = JSON.parse(readFileSync(filePath, "utf-8"));
-      const timestamp = new Date(file.split('_')[1].replace('.json', ''));
-
-      let totalExp = 0;
-      if (data.skills && Array.isArray(data.skills)) {
-        const overallSkill = data.skills.find(s => s.name === 'Overall');
-        if (overallSkill) {
-          totalExp = overallSkill.xp;
-        }
-      }
-
-      if (totalExp > 0) {
-        playerData[player].push({
-          timestamp,
-          totalExp
-        });
-      }
-    }
-    playerData[player].sort((a, b) => a.timestamp - b.timestamp);
-    // Keep only latest sample per day
-    playerData[player] = groupLatestPerDay(playerData[player]);
-  }
-
-  return playerData;
-}
-
 function generateTotalExpChartData(playerData) {
   const datasets = [];
   const allTimestamps = new Set();
@@ -1865,19 +1828,12 @@ const IGNORED_ACTIVITIES = new Set([
   "Collections Logged"
 ]);
 
-function getActivitiesComparisonData() {
-  const players = readdirSync("player_data").filter(p => !p.startsWith('.'));
+function getActivitiesComparisonData(playerDataMap) {
   const latestPlayerData = {};
   const allActivities = new Set();
 
-  for (const player of players) {
-    const playerDir = path.join("player_data", player);
-    const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
-    if (files.length === 0) continue;
-
-    const latestFile = files.sort().pop();
-    const filePath = path.join(playerDir, latestFile);
-    const data = JSON.parse(readFileSync(filePath, "utf-8"));
+  for (const [player, playerInfo] of Object.entries(playerDataMap)) {
+    const data = playerInfo.latestData;
 
     if (data.activities && Array.isArray(data.activities)) {
       const playerActivities = {};
@@ -2005,42 +1961,80 @@ async function generateStaticHTML() {
   console.log('Generating static HTML...');
 
   try {
-    const combatAchievementsData = loadCombatAchievementsData();
-    const collectionLogData = loadCollectionLogData();
-    const musicTracksData = loadMusicTracksData();
+    // === BULK DATA LOADING PHASE ===
+    console.log('Loading data...');
+    const startLoad = Date.now();
 
-    const playerData = getPlayerData();
-    const chartData = generateChartData(playerData);
-    const totalLevelProgressData = getTotalLevelProgressData();
-    const totalLevelChartData = generateTotalLevelChartData(totalLevelProgressData);
-    const totalExpProgressData = getTotalExpProgressData();
-    const totalExpChartData = generateTotalExpChartData(totalExpProgressData);
-    const skillLevelProgressData = getSkillLevelProgressData();
-    const defaultSkill = skillLevelProgressData.availableSkills[0] || 'Attack';
-    const skillLevelChartData = generateSkillLevelChartData(skillLevelProgressData.playerData, defaultSkill);
-    const questComparisonData = getQuestComparisonData();
+    // Load cache index (for incremental processing)
+    const cacheIndex = USE_CACHE ? loadCacheIndex() : { version: 1, players: {} };
+
+    // Load all game metadata once
+    const gameData = loadGameData();
+
+    // Get player list and load all latest snapshots
+    const players = getPlayerList();
+    const playerDataMap = loadAllPlayerData(players);
+
+    console.log(`Data loaded in ${Date.now() - startLoad}ms`);
+
+    // === GENERATE COMPARISON DATA (using pre-loaded data) ===
+    console.log('Generating comparison tables...');
+    const startCompare = Date.now();
+
+    const questComparisonData = getQuestComparisonData(playerDataMap, gameData);
     const questTableHtml = generateQuestComparisonTable(questComparisonData);
 
-    const levelComparisonData = getLevelComparisonData();
+    const levelComparisonData = getLevelComparisonData(playerDataMap);
     const levelTableHtml = generateLevelComparisonTable(levelComparisonData);
 
-    const achievementDiaryComparisonData = getAchievementDiaryComparisonData();
+    const achievementDiaryComparisonData = getAchievementDiaryComparisonData(playerDataMap);
     const achievementDiaryTableHtml = generateAchievementDiaryComparisonTable(achievementDiaryComparisonData);
 
-    const combatAchievementsComparisonData = getCombatAchievementsComparisonData(combatAchievementsData);
+    const combatAchievementsComparisonData = getCombatAchievementsComparisonData(playerDataMap, gameData.combatAchievements);
     const combatAchievementsTableHtml = generateCombatAchievementsComparisonTable(combatAchievementsComparisonData);
 
-    const musicTracksComparisonData = getMusicTracksComparisonData();
-    const musicTracksTableHtml = generateMusicTracksComparisonTable(musicTracksComparisonData, musicTracksData);
+    const musicTracksComparisonData = getMusicTracksComparisonData(playerDataMap);
+    const musicTracksTableHtml = generateMusicTracksComparisonTable(musicTracksComparisonData, gameData.musicTracks);
 
-    const collectionLogComparisonData = getCollectionLogComparisonData(collectionLogData);
+    const collectionLogComparisonData = getCollectionLogComparisonData(playerDataMap, gameData.collectionLog);
     const collectionLogTableHtml = await generateCollectionLogComparisonTable(collectionLogComparisonData);
 
-    const activitiesComparisonData = getActivitiesComparisonData();
+    const activitiesComparisonData = getActivitiesComparisonData(playerDataMap);
     const activitiesTableHtml = await generateActivitiesComparisonTable(activitiesComparisonData);
 
-    const achievementsData = getAchievementsData(combatAchievementsData, collectionLogData, musicTracksData);
+    console.log(`Comparison tables generated in ${Date.now() - startCompare}ms`);
+
+    // === GENERATE CHART DATA (with caching) ===
+    console.log('Generating chart data...');
+    const startCharts = Date.now();
+
+    const { chartData, totalLevelChartData, totalExpChartData, skillLevelProgressData } =
+      generateAllChartData(playerDataMap, cacheIndex, gameData);
+
+    const defaultSkill = skillLevelProgressData.availableSkills[0] || 'Attack';
+    const skillLevelChartData = generateSkillLevelChartData(skillLevelProgressData.playerData, defaultSkill);
+
+    console.log(`Chart data generated in ${Date.now() - startCharts}ms`);
+
+    // === GENERATE ACHIEVEMENTS DATA (with incremental caching) ===
+    console.log('Generating achievements...');
+    const startAchievements = Date.now();
+
+    const achievementsData = getAchievementsData(playerDataMap, cacheIndex, gameData);
     const achievementsTableHtml = generateAchievementsTable(achievementsData);
+
+    console.log(`Achievements generated in ${Date.now() - startAchievements}ms`);
+
+    // === SAVE CACHE ===
+    if (USE_CACHE) {
+      // Update cache index with latest files
+      for (const player of Object.keys(playerDataMap)) {
+        cacheIndex.players[player] = {
+          latestFile: playerDataMap[player].latestFile
+        };
+      }
+      saveCacheIndex(cacheIndex);
+    }
 
     const playerSelectionHtml = generatePlayerSelectionUI();
     const windowVisibilityHtml = generateWindowVisibilityUI();
