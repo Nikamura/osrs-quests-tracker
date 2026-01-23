@@ -1707,9 +1707,18 @@ function generatePlayerSelectionUI() {
   }
 
   selectionHtml += '</div>';
-  selectionHtml += '<div style="margin-top: 10px;">';
+  selectionHtml += '<div style="margin-top: 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px;">';
   selectionHtml += '<button onclick="selectAllPlayers()">Select All</button>';
-  selectionHtml += '<button onclick="deselectAllPlayers()" style="margin-left: 10px;">Deselect All</button>';
+  selectionHtml += '<button onclick="deselectAllPlayers()">Deselect All</button>';
+  selectionHtml += '<label style="margin-left: 10px; display: flex; align-items: center; gap: 5px;">Time Period:';
+  selectionHtml += '<select id="timePeriodSelect" onchange="updateTimePeriod()">';
+  selectionHtml += '<option value="30">Last 30 days</option>';
+  selectionHtml += '<option value="60">Last 60 days</option>';
+  selectionHtml += '<option value="90">Last 90 days</option>';
+  selectionHtml += '<option value="365">Last year</option>';
+  selectionHtml += '<option value="all">All time</option>';
+  selectionHtml += '</select>';
+  selectionHtml += '</label>';
   selectionHtml += '</div>';
   selectionHtml += '</div>';
 
@@ -2318,6 +2327,50 @@ async function generateStaticHTML() {
       return Array.from(checkboxes).map(cb => cb.value);
     }
 
+    // Time period filtering functions
+    function getSelectedTimePeriod() {
+      const select = document.getElementById('timePeriodSelect');
+      return select ? select.value : '30';
+    }
+
+    function filterDatasetsByTime(datasets, days) {
+      if (days === 'all') return { datasets, labels: null };
+
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - parseInt(days));
+
+      const filteredDatasets = datasets.map(dataset => ({
+        ...dataset,
+        data: dataset.data.filter(point => {
+          // Parse the formatted date string back to Date
+          const pointDate = new Date(point.x);
+          return pointDate >= cutoffDate;
+        })
+      }));
+
+      // Collect all unique x values from filtered datasets for labels
+      const allXValues = new Set();
+      filteredDatasets.forEach(dataset => {
+        dataset.data.forEach(point => allXValues.add(point.x));
+      });
+
+      // Sort labels chronologically
+      const labels = [...allXValues].sort((a, b) => new Date(a) - new Date(b));
+
+      return { datasets: filteredDatasets, labels };
+    }
+
+    function updateTimePeriod() {
+      const timePeriod = getSelectedTimePeriod();
+      localStorage.setItem('osrs-chart-time-period', timePeriod);
+
+      const selectedPlayers = getSelectedPlayers();
+      updateChart(selectedPlayers);
+      updateTotalLevelChart(selectedPlayers);
+      updateTotalExpChart(selectedPlayers);
+      updateSkillLevelChart(selectedPlayers);
+    }
+
     // Chart options (Total XP scale) persistence and UI
     function saveTotalXpLogScalePreference(isLog) {
       localStorage.setItem('osrs-totalxp-log-scale', JSON.stringify(isLog));
@@ -2572,50 +2625,92 @@ async function generateStaticHTML() {
       }
     }
 
+    function loadTimePeriodPreference() {
+      const saved = localStorage.getItem('osrs-chart-time-period');
+      if (saved) {
+        const select = document.getElementById('timePeriodSelect');
+        if (select) {
+          select.value = saved;
+        }
+      }
+    }
+
     function updateChart(selectedPlayers) {
       if (!questChart) return;
 
+      const timePeriod = getSelectedTimePeriod();
+
       // Filter datasets to only show selected players
-      const filteredDatasets = originalChartData.datasets.filter(dataset => {
+      let filteredDatasets = originalChartData.datasets.filter(dataset => {
         // Find the player key that matches this dataset label
         const playerKey = displayToPlayer[dataset.label];
         return playerKey && selectedPlayers.includes(playerKey);
       });
 
-      questChart.data.datasets = filteredDatasets;
+      // Apply time period filter
+      const { datasets, labels } = filterDatasetsByTime(filteredDatasets, timePeriod);
+
+      questChart.data.datasets = datasets;
+      if (labels) {
+        questChart.data.labels = labels;
+      } else {
+        questChart.data.labels = originalChartData.labels;
+      }
       questChart.update();
     }
 
     function updateTotalLevelChart(selectedPlayers) {
       if (!totalLevelChart) return;
 
+      const timePeriod = getSelectedTimePeriod();
+
       // Filter datasets to only show selected players
-      const filteredDatasets = originalTotalLevelChartData.datasets.filter(dataset => {
+      let filteredDatasets = originalTotalLevelChartData.datasets.filter(dataset => {
         // Find the player key that matches this dataset label
         const playerKey = displayToPlayer[dataset.label];
         return playerKey && selectedPlayers.includes(playerKey);
       });
 
-      totalLevelChart.data.datasets = filteredDatasets;
+      // Apply time period filter
+      const { datasets, labels } = filterDatasetsByTime(filteredDatasets, timePeriod);
+
+      totalLevelChart.data.datasets = datasets;
+      if (labels) {
+        totalLevelChart.data.labels = labels;
+      } else {
+        totalLevelChart.data.labels = originalTotalLevelChartData.labels;
+      }
       totalLevelChart.update();
     }
 
     function updateTotalExpChart(selectedPlayers) {
       if (!totalExpChart) return;
 
+      const timePeriod = getSelectedTimePeriod();
+
       // Filter datasets to only show selected players
-      const filteredDatasets = originalTotalExpChartData.datasets.filter(dataset => {
+      let filteredDatasets = originalTotalExpChartData.datasets.filter(dataset => {
         // Find the player key that matches this dataset label
         const playerKey = displayToPlayer[dataset.label];
         return playerKey && selectedPlayers.includes(playerKey);
       });
 
-      totalExpChart.data.datasets = filteredDatasets;
+      // Apply time period filter
+      const { datasets, labels } = filterDatasetsByTime(filteredDatasets, timePeriod);
+
+      totalExpChart.data.datasets = datasets;
+      if (labels) {
+        totalExpChart.data.labels = labels;
+      } else {
+        totalExpChart.data.labels = originalTotalExpChartData.labels;
+      }
       totalExpChart.update();
     }
 
     function updateSkillLevelChart(selectedPlayers) {
       if (!skillLevelChart) return;
+
+      const timePeriod = getSelectedTimePeriod();
 
       // Get the currently selected skill
       const skillSelect = document.getElementById('skillSelect');
@@ -2632,8 +2727,17 @@ async function generateStaticHTML() {
       }
 
       // Generate new chart data
-      const newChartData = generateSkillLevelChartDataJS(filteredPlayerData, selectedSkill);
-      skillLevelChart.data.datasets = newChartData.datasets;
+      let newChartData = generateSkillLevelChartDataJS(filteredPlayerData, selectedSkill);
+
+      // Apply time period filter
+      const { datasets, labels } = filterDatasetsByTime(newChartData.datasets, timePeriod);
+
+      skillLevelChart.data.datasets = datasets;
+      if (labels) {
+        skillLevelChart.data.labels = labels;
+      } else {
+        skillLevelChart.data.labels = newChartData.labels;
+      }
       skillLevelChart.update();
     }
 
@@ -3636,6 +3740,7 @@ async function generateStaticHTML() {
 
       // Load all saved states (this will update checkboxes and other UI elements)
       loadWindowOrder();
+      loadTimePeriodPreference();
       loadPlayerSelection();
       loadWindowVisibility();
 
@@ -3786,6 +3891,13 @@ async function generateStaticHTML() {
         }
       }
     });
+
+    // Apply initial time period filter to all charts
+    const selectedPlayers = getSelectedPlayers();
+    updateChart(selectedPlayers);
+    updateTotalLevelChart(selectedPlayers);
+    updateTotalExpChart(selectedPlayers);
+    updateSkillLevelChart(selectedPlayers);
   </script>
 </body>
 </html>`;
