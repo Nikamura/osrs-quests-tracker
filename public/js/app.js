@@ -23,6 +23,15 @@ let CHART_COLORS = [];
 // Table data loaded from JSON
 let tableData = null;
 
+const TIER_ORDER = {
+  'Easy (1 pt)': 1,
+  'Medium (2 pts)': 2,
+  'Hard (3 pts)': 3,
+  'Elite (4 pts)': 4,
+  'Master (5 pts)': 5,
+  'Grandmaster (6 pts)': 6
+};
+
 async function loadAppData() {
   const v = window.__dataVersion || '';
   const [chartResponse, configResponse, tableResponse] = await Promise.all([
@@ -220,18 +229,17 @@ function initializeAchievementsFilter() {
   });
 }
 
-function updatePlayerVisualIndicators() {
-  const allCheckboxes = document.querySelectorAll('input[type="checkbox"][id^="player-"]');
-  allCheckboxes.forEach(checkbox => {
-    const label = checkbox.closest('.player-label');
+function updateCheckboxVisualIndicators(checkboxPrefix, labelClass) {
+  document.querySelectorAll(`input[type="checkbox"][id^="${checkboxPrefix}"]`).forEach(checkbox => {
+    const label = checkbox.closest(`.${labelClass}`);
     if (label) {
-      if (checkbox.checked) {
-        label.classList.remove('unselected');
-      } else {
-        label.classList.add('unselected');
-      }
+      label.classList.toggle('unselected', !checkbox.checked);
     }
   });
+}
+
+function updatePlayerVisualIndicators() {
+  updateCheckboxVisualIndicators('player-', 'player-label');
 }
 
 function updatePlayerSelection() {
@@ -267,17 +275,7 @@ function getSelectedWindows() {
 }
 
 function updateWindowVisualIndicators() {
-  const allCheckboxes = document.querySelectorAll('input[type="checkbox"][id^="window-"]');
-  allCheckboxes.forEach(checkbox => {
-    const label = checkbox.closest('.window-label');
-    if (label) {
-      if (checkbox.checked) {
-        label.classList.remove('unselected');
-      } else {
-        label.classList.add('unselected');
-      }
-    }
-  });
+  updateCheckboxVisualIndicators('window-', 'window-label');
 }
 
 function updateWindowVisibility() {
@@ -332,34 +330,6 @@ function loadWindowVisibility() {
   }
 }
 
-// Apply initial window states from localStorage before DOM is fully loaded
-function applyInitialStates() {
-  // Apply window visibility immediately
-  const savedWindows = localStorage.getItem('osrs-selected-windows');
-  if (savedWindows) {
-    const selectedWindows = JSON.parse(savedWindows);
-    const allWindows = document.querySelectorAll('.window[data-window-id]');
-    allWindows.forEach(windowElement => {
-      const windowId = windowElement.dataset.windowId;
-      if (!selectedWindows.includes(windowId)) {
-        windowElement.classList.add('hidden');
-      }
-    });
-  }
-
-  // Apply minimized states immediately
-  const savedStates = JSON.parse(localStorage.getItem('osrs-minimized-windows') || '{}');
-  document.querySelectorAll('.window').forEach(windowElement => {
-    const titleText = windowElement.querySelector('.title-bar-text');
-    if (titleText) {
-      const windowId = titleText.textContent.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      if (savedStates[windowId]) {
-        windowElement.classList.add('minimized');
-      }
-    }
-  });
-}
-
 function selectAllPlayers() {
   const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="player-"]');
   checkboxes.forEach(cb => cb.checked = true);
@@ -401,76 +371,29 @@ function loadTimePeriodPreference() {
   }
 }
 
-function updateChart(selectedPlayers) {
-  if (!questChart) return;
-
+function updateChartInstance(chartInstance, originalData, selectedPlayers) {
+  if (!chartInstance) return;
   const timePeriod = getSelectedTimePeriod();
-
-  // Filter datasets to only show selected players
-  let filteredDatasets = originalChartData.datasets.filter(dataset => {
-    // Find the player key that matches this dataset label
+  let filteredDatasets = originalData.datasets.filter(dataset => {
     const playerKey = displayToPlayer[dataset.label];
     return playerKey && selectedPlayers.includes(playerKey);
   });
-
-  // Apply time period filter
   const { datasets, labels } = filterDatasetsByTime(filteredDatasets, timePeriod);
+  chartInstance.data.datasets = datasets;
+  chartInstance.data.labels = labels || originalData.labels;
+  chartInstance.update();
+}
 
-  questChart.data.datasets = datasets;
-  if (labels) {
-    questChart.data.labels = labels;
-  } else {
-    questChart.data.labels = originalChartData.labels;
-  }
-  questChart.update();
+function updateChart(selectedPlayers) {
+  updateChartInstance(questChart, originalChartData, selectedPlayers);
 }
 
 function updateTotalLevelChart(selectedPlayers) {
-  if (!totalLevelChart) return;
-
-  const timePeriod = getSelectedTimePeriod();
-
-  // Filter datasets to only show selected players
-  let filteredDatasets = originalTotalLevelChartData.datasets.filter(dataset => {
-    // Find the player key that matches this dataset label
-    const playerKey = displayToPlayer[dataset.label];
-    return playerKey && selectedPlayers.includes(playerKey);
-  });
-
-  // Apply time period filter
-  const { datasets, labels } = filterDatasetsByTime(filteredDatasets, timePeriod);
-
-  totalLevelChart.data.datasets = datasets;
-  if (labels) {
-    totalLevelChart.data.labels = labels;
-  } else {
-    totalLevelChart.data.labels = originalTotalLevelChartData.labels;
-  }
-  totalLevelChart.update();
+  updateChartInstance(totalLevelChart, originalTotalLevelChartData, selectedPlayers);
 }
 
 function updateTotalExpChart(selectedPlayers) {
-  if (!totalExpChart) return;
-
-  const timePeriod = getSelectedTimePeriod();
-
-  // Filter datasets to only show selected players
-  let filteredDatasets = originalTotalExpChartData.datasets.filter(dataset => {
-    // Find the player key that matches this dataset label
-    const playerKey = displayToPlayer[dataset.label];
-    return playerKey && selectedPlayers.includes(playerKey);
-  });
-
-  // Apply time period filter
-  const { datasets, labels } = filterDatasetsByTime(filteredDatasets, timePeriod);
-
-  totalExpChart.data.datasets = datasets;
-  if (labels) {
-    totalExpChart.data.labels = labels;
-  } else {
-    totalExpChart.data.labels = originalTotalExpChartData.labels;
-  }
-  totalExpChart.update();
+  updateChartInstance(totalExpChart, originalTotalExpChartData, selectedPlayers);
 }
 
 function updateSkillLevelChart(selectedPlayers) {
@@ -571,31 +494,25 @@ function generateSkillLevelChartDataJS(playerData, selectedSkill) {
   return generateTimeSeriesChartDataJS(playerData, d => d.skillLevels[selectedSkill] || 1);
 }
 
-function updateQuestTable(selectedPlayers) {
-  const windows = document.querySelectorAll('.window');
-  let table = null;
-  for (const window of windows) {
-    const titleText = window.querySelector('.title-bar-text');
-    if (titleText && titleText.textContent.includes('Quest Comparison')) {
-      table = window.querySelector('table');
-      break;
+function findTableByWindowTitle(titleSubstring) {
+  for (const win of document.querySelectorAll('.window')) {
+    const titleText = win.querySelector('.title-bar-text');
+    if (titleText && titleText.textContent.includes(titleSubstring)) {
+      return win.querySelector('table');
     }
   }
+  return null;
+}
+
+function updateQuestTable(selectedPlayers) {
+  const table = findTableByWindowTitle('Quest Comparison');
   if (!table) return;
 
   updateTable(table, selectedPlayers, 'quest');
 }
 
 function updateLevelTable(selectedPlayers) {
-  const windows = document.querySelectorAll('.window');
-  let table = null;
-  for (const window of windows) {
-    const titleText = window.querySelector('.title-bar-text');
-    if (titleText && titleText.textContent.includes('Level Comparison')) {
-      table = window.querySelector('table');
-      break;
-    }
-  }
+  const table = findTableByWindowTitle('Level Comparison');
   if (!table) return;
 
   updateTable(table, selectedPlayers, 'level');
@@ -671,30 +588,14 @@ function updateLevelRankings(table, selectedPlayers) {
 }
 
 function updateDiaryTable(selectedPlayers) {
-  const windows = document.querySelectorAll('.window');
-  let table = null;
-  for (const window of windows) {
-    const titleText = window.querySelector('.title-bar-text');
-    if (titleText && titleText.textContent.includes('Achievement Diaries')) {
-      table = window.querySelector('table');
-      break;
-    }
-  }
+  const table = findTableByWindowTitle('Achievement Diaries');
   if (!table) return;
 
   updateTable(table, selectedPlayers, 'diary');
 }
 
 function updateCombatAchievementsTable(selectedPlayers) {
-  const windows = document.querySelectorAll('.window');
-  let table = null;
-  for (const window of windows) {
-    const titleText = window.querySelector('.title-bar-text');
-    if (titleText && titleText.textContent.includes('Combat Achievements')) {
-      table = window.querySelector('table');
-      break;
-    }
-  }
+  const table = findTableByWindowTitle('Combat Achievements');
   if (!table) return;
 
   updateCombatAchievementsTableContent(table, selectedPlayers);
@@ -702,33 +603,22 @@ function updateCombatAchievementsTable(selectedPlayers) {
 }
 
 function updateMusicTable(selectedPlayers) {
-  const windows = document.querySelectorAll('.window');
-  let table = null;
-  for (const window of windows) {
-    const titleText = window.querySelector('.title-bar-text');
-    if (titleText && titleText.textContent.includes('Music Tracks')) {
-      table = window.querySelector('table');
-      break;
-    }
-  }
+  const table = findTableByWindowTitle('Music Tracks');
   if (!table) return;
 
   updateTable(table, selectedPlayers, 'music');
   updateMusicTotalsRankings(table, selectedPlayers);
 }
 
-function updateMusicTotalsRankings(table, selectedPlayers) {
-  // The total row is the last one in tbody
+function updateTotalRowRankings(table, selectedPlayers, totalRowClass, skipColumns) {
   const totalRow = table.querySelector('tbody tr:last-child');
-  if (!totalRow || !totalRow.classList.contains('music-tracks-total-row')) return;
+  if (!totalRow || !totalRow.classList.contains(totalRowClass)) return;
 
   const cells = totalRow.querySelectorAll('td');
-  if (cells.length < 2) return; // need at least name and one player
+  if (cells.length <= skipColumns) return;
 
-  // Skip the first cell ("Total Tracks")
-  const totalCells = Array.from(cells).slice(1);
+  const totalCells = Array.from(cells).slice(skipColumns);
 
-  // Get totals for selected players only
   const selectedTotals = [];
   totalCells.forEach(cell => {
     const playerData = cell.dataset.player;
@@ -736,226 +626,89 @@ function updateMusicTotalsRankings(table, selectedPlayers) {
     const total = parseInt(cell.dataset.total) || 0;
 
     if (selectedPlayers.includes(playerData)) {
-      selectedTotals.push({
-        cell: cell,
-        player: playerData,
-        total: total,
-      });
+      selectedTotals.push({ cell, player: playerData, total });
     }
   });
 
   applyRankingClasses(totalCells, selectedTotals, 'total');
 }
 
+function updateMusicTotalsRankings(table, selectedPlayers) {
+  updateTotalRowRankings(table, selectedPlayers, 'music-tracks-total-row', 1);
+}
+
 function updateCollectionLogTable(selectedPlayers) {
-  const windows = document.querySelectorAll('.window');
-  let table = null;
-  for (const window of windows) {
-    const titleText = window.querySelector('.title-bar-text');
-    if (titleText && titleText.textContent.includes('Collection Log')) {
-      table = window.querySelector('table');
-      break;
-    }
-  }
+  const table = findTableByWindowTitle('Collection Log');
   if (!table) return;
 
   updateCollectionLogTableContent(table, selectedPlayers);
   updateCollectionLogRankings(table, selectedPlayers);
 }
 
-function updateCollectionLogTableContent(table, selectedPlayers) {
+function updateMultiColumnTableContent(table, selectedPlayers, fixedColumns, totalRowClass) {
   const headerRow = table.querySelector('thead tr');
   const bodyRows = table.querySelectorAll('tbody tr');
 
   if (!headerRow) return;
 
-  // Get all header cells (skip first 2 cells: icon, item)
   const headerCells = headerRow.querySelectorAll('th');
-  const playerHeaders = Array.from(headerCells).slice(2); // All remaining columns are player columns
+  const playerHeaders = Array.from(headerCells).slice(fixedColumns);
 
-  // Create mapping of column indices to show/hide
-  const columnsToShow = [0, 1]; // Always show icon, item columns
-
-  // Track which player columns are selected
+  const columnsToShow = new Set(Array.from({ length: fixedColumns }, (_, i) => i));
   const selectedPlayerIndices = [];
+
   playerHeaders.forEach((header, index) => {
     const displayName = header.textContent;
     const playerKey = displayToPlayer[displayName];
 
     if (playerKey && selectedPlayers.includes(playerKey)) {
-      columnsToShow.push(index + 2); // +2 for icon, item columns
-      selectedPlayerIndices.push(index + 2);
+      columnsToShow.add(index + fixedColumns);
+      selectedPlayerIndices.push(index + fixedColumns);
       header.style.display = '';
     } else {
       header.style.display = 'none';
     }
   });
 
-
-
-  // Update body rows
   bodyRows.forEach(row => {
     const cells = row.querySelectorAll('td');
 
-    if (!row.classList.contains('collection-log-total-row')) {
-      // Check if any selected player has this item
-      let anySelectedPlayerHasItem = false;
-      selectedPlayerIndices.forEach(playerIndex => {
+    if (!row.classList.contains(totalRowClass)) {
+      let anySelectedPlayerHasIt = false;
+      for (const playerIndex of selectedPlayerIndices) {
         if (cells[playerIndex] && cells[playerIndex].textContent.trim() === '\u2713') {
-          anySelectedPlayerHasItem = true;
+          anySelectedPlayerHasIt = true;
+          break;
         }
-      });
-
-      // Hide the entire row if no selected player has this item and players are selected
-      if (!anySelectedPlayerHasItem && selectedPlayers.length > 0) {
-        row.style.display = 'none';
-      } else {
-        row.style.display = '';
       }
+
+      row.style.display = (!anySelectedPlayerHasIt && selectedPlayers.length > 0) ? 'none' : '';
     }
 
-    // Show/hide individual cells
     cells.forEach((cell, index) => {
-      if (columnsToShow.includes(index)) {
-        cell.style.display = '';
-      } else {
-        cell.style.display = 'none';
-      }
+      cell.style.display = columnsToShow.has(index) ? '' : 'none';
     });
   });
+}
+
+function updateCollectionLogTableContent(table, selectedPlayers) {
+  updateMultiColumnTableContent(table, selectedPlayers, 2, 'collection-log-total-row');
 }
 
 function updateCombatAchievementsTableContent(table, selectedPlayers) {
-  const headerRow = table.querySelector('thead tr');
-  const bodyRows = table.querySelectorAll('tbody tr');
-
-  if (!headerRow) return;
-
-  // Get all header cells (skip first 3 cells: tier icon, monster, achievement name)
-  const headerCells = headerRow.querySelectorAll('th');
-  const playerHeaders = Array.from(headerCells).slice(3); // All remaining columns are player columns
-
-  // Create mapping of column indices to show/hide
-  const columnsToShow = [0, 1, 2]; // Always show tier icon, monster, achievement name columns
-
-  // Track which player columns are selected
-  const selectedPlayerIndices = [];
-  playerHeaders.forEach((header, index) => {
-    const displayName = header.textContent;
-    const playerKey = displayToPlayer[displayName];
-
-    if (playerKey && selectedPlayers.includes(playerKey)) {
-      columnsToShow.push(index + 3); // +3 for tier icon, monster, achievement name columns
-      selectedPlayerIndices.push(index + 3);
-      header.style.display = '';
-    } else {
-      header.style.display = 'none';
-    }
-  });
-
-  // Update body rows
-  bodyRows.forEach(row => {
-    const cells = row.querySelectorAll('td');
-
-    // Skip total row from filtering logic
-    if (!row.classList.contains('combat-achievements-total-row')) {
-      // Check if any selected player has this achievement
-      let anySelectedPlayerHasAchievement = false;
-      selectedPlayerIndices.forEach(playerIndex => {
-        if (cells[playerIndex] && cells[playerIndex].textContent.trim() === '\u2713') {
-          anySelectedPlayerHasAchievement = true;
-        }
-      });
-
-      // Hide the row if no selected player has the achievement
-      if (!anySelectedPlayerHasAchievement && selectedPlayers.length > 0) {
-        row.style.display = 'none';
-      } else {
-        row.style.display = '';
-      }
-    }
-
-    // Show/hide individual cells
-    cells.forEach((cell, index) => {
-      if (columnsToShow.includes(index)) {
-        cell.style.display = '';
-      } else {
-        cell.style.display = 'none';
-      }
-    });
-  });
+  updateMultiColumnTableContent(table, selectedPlayers, 3, 'combat-achievements-total-row');
 }
 
 function updateCombatAchievementsRankings(table, selectedPlayers) {
-  // The total row is the last one in tbody
-  const totalRow = table.querySelector('tbody tr:last-child');
-  if (!totalRow || !totalRow.classList.contains('combat-achievements-total-row')) return;
-
-  const cells = totalRow.querySelectorAll('td');
-  if (cells.length < 4) return; // need at least tier, monster, name, and one player
-
-  // Skip the first three cells (tier, monster, Total Achievements)
-  const totalCells = Array.from(cells).slice(3);
-
-  // Get totals for selected players only
-  const selectedTotals = [];
-  totalCells.forEach(cell => {
-    const playerData = cell.dataset.player;
-    if (!playerData) return;
-    const total = parseInt(cell.dataset.total) || 0;
-
-    if (selectedPlayers.includes(playerData)) {
-      selectedTotals.push({
-        cell: cell,
-        player: playerData,
-        total: total,
-      });
-    }
-  });
-
-  applyRankingClasses(totalCells, selectedTotals, 'total');
+  updateTotalRowRankings(table, selectedPlayers, 'combat-achievements-total-row', 3);
 }
 
 function updateCollectionLogRankings(table, selectedPlayers) {
-  // The total row is the last one in tbody
-  const totalRow = table.querySelector('tbody tr:last-child');
-  if (!totalRow || !totalRow.classList.contains('collection-log-total-row')) return;
-
-  const cells = totalRow.querySelectorAll('td');
-  if (cells.length < 3) return; // need at least icon, name, and one player
-
-  // Skip the first two cells (icon, Total Items)
-  const totalCells = Array.from(cells).slice(2);
-
-  // Get totals for selected players only
-  const selectedTotals = [];
-  totalCells.forEach(cell => {
-    const playerData = cell.dataset.player;
-    if (!playerData) return;
-    const total = parseInt(cell.dataset.total) || 0;
-
-    if (selectedPlayers.includes(playerData)) {
-      selectedTotals.push({
-        cell: cell,
-        player: playerData,
-        total: total,
-      });
-    }
-  });
-
-  applyRankingClasses(totalCells, selectedTotals, 'total');
+  updateTotalRowRankings(table, selectedPlayers, 'collection-log-total-row', 2);
 }
 
 function updateAchievementsTable(selectedPlayers) {
-  const windows = document.querySelectorAll('.window');
-  let table = null;
-  for (const window of windows) {
-    const titleText = window.querySelector('.title-bar-text');
-    if (titleText && titleText.textContent.includes('Recent Achievements')) {
-      table = window.querySelector('table');
-      break;
-    }
-  }
+  const table = findTableByWindowTitle('Recent Achievements');
   if (!table) return;
 
   // For achievements table, filter rows by selected players
@@ -978,15 +731,7 @@ function updateAchievementsTable(selectedPlayers) {
 }
 
 function updateActivitiesTable(selectedPlayers) {
-  const windows = document.querySelectorAll('.window');
-  let table = null;
-  for (const window of windows) {
-    const titleText = window.querySelector('.title-bar-text');
-    if (titleText && titleText.textContent.includes('Activities Comparison')) {
-      table = window.querySelector('table');
-      break;
-    }
-  }
+  const table = findTableByWindowTitle('Activities Comparison');
   if (!table) return;
 
   updateTable(table, selectedPlayers, 'activity');
@@ -1032,14 +777,14 @@ function updateTable(table, selectedPlayers, tableType) {
   const playerHeaders = Array.from(headerCells).slice(1);
 
   // Create mapping of column indices to show/hide
-  const columnsToShow = [0]; // Always show first column (item name)
+  const columnsToShow = new Set([0]); // Always show first column (item name)
 
   playerHeaders.forEach((header, index) => {
     const displayName = header.textContent;
     const playerKey = displayToPlayer[displayName];
 
     if (playerKey && selectedPlayers.includes(playerKey)) {
-      columnsToShow.push(index + 1);
+      columnsToShow.add(index + 1);
       header.style.display = '';
     } else {
       header.style.display = 'none';
@@ -1050,11 +795,7 @@ function updateTable(table, selectedPlayers, tableType) {
   bodyRows.forEach(row => {
     const cells = row.querySelectorAll('td');
     cells.forEach((cell, index) => {
-      if (columnsToShow.includes(index)) {
-        cell.style.display = '';
-      } else {
-        cell.style.display = 'none';
-      }
+      cell.style.display = columnsToShow.has(index) ? '' : 'none';
     });
 
     // For achievement diary tables, handle special formatting
@@ -1494,8 +1235,9 @@ function generateLevelComparisonTable(comparisonData) {
 
   const totalRankings = computeRankings(totalLevels, 'total');
 
-  for (const player of players) {
-    const totalLevel = totalLevels.find(t => t.player === player)?.total ?? 0;
+  for (let i = 0; i < players.length; i++) {
+    const player = players[i];
+    const totalLevel = totalLevels[i].total;
     let levelClass = 'level-low';
     if (totalLevel >= 1600) levelClass = 'level-high';
     else if (totalLevel >= 1000) levelClass = 'level-medium';
@@ -1625,26 +1367,17 @@ function generateCombatAchievementsComparisonTable(comparisonData) {
 
   // Get all available achievements from the metadata and filter for completed ones
   const allAchievements = Object.values(combatAchievementsData).filter(achievement => {
+    const numericTaskId = parseInt(achievement.taskId);
     return players.some(player => {
       const playerAchievements = playerCombatAchievements[player] || [];
-      return playerAchievements.includes(parseInt(achievement.taskId));
+      return playerAchievements.includes(numericTaskId);
     });
   });
 
   // Sort achievements by tier and name
   const sortedAchievements = allAchievements.sort((a, b) => {
-    // First sort by tier (Easy, Medium, Hard, Elite, Master, Grandmaster)
-    const tierOrder = {
-      'Easy (1 pt)': 1,
-      'Medium (2 pts)': 2,
-      'Hard (3 pts)': 3,
-      'Elite (4 pts)': 4,
-      'Master (5 pts)': 5,
-      'Grandmaster (6 pts)': 6
-    };
-
-    const tierA = tierOrder[a.tier] || 999;
-    const tierB = tierOrder[b.tier] || 999;
+    const tierA = TIER_ORDER[a.tier] || 999;
+    const tierB = TIER_ORDER[b.tier] || 999;
 
     if (tierA !== tierB) {
       return tierA - tierB;
@@ -1668,10 +1401,10 @@ function generateCombatAchievementsComparisonTable(comparisonData) {
   tableHtml += '<tbody>';
 
   for (const achievement of sortedAchievements) {
-    const achievementId = achievement.taskId;
+    const numericTaskId = parseInt(achievement.taskId);
     const statuses = players.map(player => {
       const playerAchievements = playerCombatAchievements[player] || [];
-      return playerAchievements.includes(parseInt(achievementId));
+      return playerAchievements.includes(numericTaskId);
     });
 
     let rowClass = '';
@@ -1723,8 +1456,9 @@ function generateCombatAchievementsComparisonTable(comparisonData) {
 
   const totalRankings = computeRankings(totalAchievements, 'total');
 
-  for (const player of players) {
-    const total = totalAchievements.find(t => t.player === player)?.total ?? 0;
+  for (let i = 0; i < players.length; i++) {
+    const player = players[i];
+    const total = totalAchievements[i].total;
     const rankingClass = getRankingClass(total, totalRankings[player]);
 
     tableHtml += `<td class="level-cell${rankingClass}" data-player="${player}" data-total="${total}" style="font-size: 1.1em; text-align: center;">${total}</td>`;
@@ -1806,8 +1540,9 @@ function generateMusicTracksComparisonTable(comparisonData, musicTracksData) {
 
   const totalRankings = computeRankings(totalTracks, 'total');
 
-  for (const player of players) {
-    const total = totalTracks.find(t => t.player === player)?.total ?? 0;
+  for (let i = 0; i < players.length; i++) {
+    const player = players[i];
+    const total = totalTracks[i].total;
     const rankingClass = getRankingClass(total, totalRankings[player]);
 
     tableHtml += `<td class="level-cell${rankingClass}" data-player="${player}" data-total="${total}" style="font-size: 1.1em; text-align: center;">${total}</td>`;
@@ -1826,9 +1561,9 @@ function generateCollectionLogComparisonTable(comparisonData) {
   }
 
   const allItems = Object.values(collectionLogData).filter(item => {
-    const itemId = item.itemId;
+    const numericId = parseInt(item.itemId);
     return players.some(player =>
-      playerCollectionLogs[player] && playerCollectionLogs[player].includes(parseInt(itemId))
+      playerCollectionLogs[player] && playerCollectionLogs[player].includes(numericId)
     );
   });
 
@@ -1849,11 +1584,11 @@ function generateCollectionLogComparisonTable(comparisonData) {
   tableHtml += '<tbody>';
 
   for (const item of allItems) {
-    const itemId = item.itemId;
+    const numericId = parseInt(item.itemId);
 
     // Calculate how many players have this item
     const playersWithItem = players.filter(player =>
-      playerCollectionLogs[player] && playerCollectionLogs[player].includes(parseInt(itemId))
+      playerCollectionLogs[player] && playerCollectionLogs[player].includes(numericId)
     );
 
     // Row class based on completion
@@ -1874,7 +1609,7 @@ function generateCollectionLogComparisonTable(comparisonData) {
 
     // Player columns
     for (const player of players) {
-      const hasItem = playerCollectionLogs[player] && playerCollectionLogs[player].includes(parseInt(itemId));
+      const hasItem = playerCollectionLogs[player] && playerCollectionLogs[player].includes(numericId);
       let statusClass = hasItem ? 'collection-has-item' : 'collection-missing-item';
       let statusText = hasItem ? '\u2713' : '\u2717';
       tableHtml += `<td class="${statusClass}" style="text-align: center;">${statusText}</td>`;
@@ -1896,8 +1631,9 @@ function generateCollectionLogComparisonTable(comparisonData) {
 
   const totalRankings = computeRankings(totalItems, 'total');
 
-  for (const player of players) {
-    const total = totalItems.find(t => t.player === player)?.total ?? 0;
+  for (let i = 0; i < players.length; i++) {
+    const player = players[i];
+    const total = totalItems[i].total;
     const rankingClass = getRankingClass(total, totalRankings[player]);
 
     tableHtml += `<td class="level-cell${rankingClass}" data-player="${player}" data-total="${total}" style="font-size: 1.1em; text-align: center;">${total}</td>`;
@@ -1963,8 +1699,9 @@ function generateActivitiesComparisonTable(comparisonData) {
 
   const totalRankings = computeRankings(totalActivities, 'total');
 
-  for (const player of players) {
-    const total = totalActivities.find(t => t.player === player)?.total ?? 0;
+  for (let i = 0; i < players.length; i++) {
+    const player = players[i];
+    const total = totalActivities[i].total;
     const rankingClass = getRankingClass(total, totalRankings[player]);
 
     tableHtml += `<td class="level-cell ${rankingClass}" data-player="${player}" data-total="${total}" style="font-size: 1.1em; text-align: center;">${total}</td>`;
@@ -1974,6 +1711,17 @@ function generateActivitiesComparisonTable(comparisonData) {
   tableHtml += '</tbody></table></div>';
 
   return tableHtml;
+}
+
+const TYPE_DISPLAY_NAMES = {
+  collection_item: { singular: 'Collection Item', plural: 'Collection Items' },
+  activity: { singular: 'Activity', plural: 'Activities' }
+};
+
+function formatTypeName(type, plural) {
+  const override = TYPE_DISPLAY_NAMES[type];
+  if (override) return plural ? override.plural : override.singular;
+  return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
 function generateAchievementsTable(achievementsData) {
@@ -2017,15 +1765,7 @@ function generateAchievementsTable(achievementsData) {
   // Type summary
   tableHtml += '<div><strong>By Type:</strong><br>';
   for (const [type, count] of Object.entries(typeStats)) {
-    let typeName = type.charAt(0).toUpperCase() + type.slice(1);
-    // Special handling for collection_item type
-    if (type === 'collection_item') {
-      typeName = 'Collection Items';
-    }
-    if (type === 'activity') {
-      typeName = 'Activities';
-    }
-    tableHtml += `${typeName}: ${count}<br>`;
+    tableHtml += `${formatTypeName(type, true)}: ${count}<br>`;
   }
   tableHtml += '</div>';
   tableHtml += '</div>';
@@ -2049,8 +1789,12 @@ function generateAchievementsTable(achievementsData) {
 
   // Body
   tableHtml += '<tbody>';
+  const now = new Date();
+  const nowMs = now.getTime();
   for (const achievement of achievementsData) {
-    const timeDiff = new Date(achievement.timestamp).getTime() - new Date(achievement.previousTimestamp).getTime();
+    const ts = new Date(achievement.timestamp);
+    const tsMs = ts.getTime();
+    const timeDiff = tsMs - new Date(achievement.previousTimestamp).getTime();
     const playerColor = playerColors[achievement.player] || '#999999';
 
     // Consistent row styling - all rows get the same base styling
@@ -2064,8 +1808,7 @@ function generateAchievementsTable(achievementsData) {
     const isMajor = achievement.isMajorAchievement === true;
 
     // Format date as relative time
-    const now = new Date();
-    const relativeTimeDiff = now.getTime() - new Date(achievement.timestamp).getTime();
+    const relativeTimeDiff = nowMs - tsMs;
     const minutes = Math.floor(relativeTimeDiff / (1000 * 60));
     const hours = Math.floor(relativeTimeDiff / (1000 * 60 * 60));
     const days = Math.floor(relativeTimeDiff / (1000 * 60 * 60 * 24));
@@ -2080,8 +1823,7 @@ function generateAchievementsTable(achievementsData) {
     } else if (days < 7) {
       dateWithTime = `${days}d ago`;
     } else {
-      // For older dates, show the actual date
-      dateWithTime = new Date(achievement.timestamp).toLocaleString('en-US', {
+      dateWithTime = ts.toLocaleString('en-US', {
         month: 'short',
         day: 'numeric',
         hour12: false,
@@ -2121,15 +1863,7 @@ function generateAchievementsTable(achievementsData) {
       tableHtml += `<td>${achievement.name}</td>`;
     }
 
-    let typeDisplayName = achievement.type.charAt(0).toUpperCase() + achievement.type.slice(1);
-    // Special handling for collection_item type
-    if (achievement.type === 'collection_item') {
-      typeDisplayName = 'Collection Item';
-    }
-    if (achievement.type === 'activity') {
-      typeDisplayName = 'Activity';
-    }
-    tableHtml += `<td>${typeDisplayName}</td>`;
+    tableHtml += `<td>${formatTypeName(achievement.type, false)}</td>`;
     tableHtml += `<td>${dateWithTime}</td>`;
     tableHtml += '</tr>';
   }
@@ -2143,17 +1877,21 @@ function renderTables() {
   document.getElementById('level-table-container').innerHTML = generateLevelComparisonTable(tableData.levels);
   document.getElementById('diary-table-container').innerHTML = generateAchievementDiaryComparisonTable(tableData.achievementDiaries);
   document.getElementById('combat-achievements-table-container').innerHTML = generateCombatAchievementsComparisonTable(tableData.combatAchievements);
-  document.getElementById('music-tracks-table-container').innerHTML = generateMusicTracksComparisonTable(tableData.musicTracks, tableData.musicTracks.musicTracksMetadata);
+  document.getElementById('music-tracks-table-container').innerHTML = generateMusicTracksComparisonTable(tableData.musicTracks, tableData.musicTracksMetadata);
   document.getElementById('collection-log-table-container').innerHTML = generateCollectionLogComparisonTable(tableData.collectionLog);
   document.getElementById('activities-table-container').innerHTML = generateActivitiesComparisonTable(tableData.activities);
   document.getElementById('achievements-table-container').innerHTML = generateAchievementsTable(tableData.achievements);
+}
+
+function cloneChartData(data) {
+  return JSON.parse(JSON.stringify(data));
 }
 
 function initializeCharts() {
   const ctx = document.getElementById('questChart').getContext('2d');
   questChart = new Chart(ctx, {
     type: 'line',
-    data: originalChartData,
+    data: cloneChartData(originalChartData),
     options: {
       scales: {
         x: {
@@ -2182,7 +1920,7 @@ function initializeCharts() {
   const totalLevelCtx = document.getElementById('totalLevelChart').getContext('2d');
   totalLevelChart = new Chart(totalLevelCtx, {
     type: 'line',
-    data: originalTotalLevelChartData,
+    data: cloneChartData(originalTotalLevelChartData),
     options: {
       scales: {
         x: {
@@ -2212,7 +1950,7 @@ function initializeCharts() {
   const initialTotalXpLogScale = loadTotalXpLogScalePreference();
   totalExpChart = new Chart(totalExpCtx, {
     type: 'line',
-    data: originalTotalExpChartData,
+    data: cloneChartData(originalTotalExpChartData),
     options: {
       scales: {
         x: {
@@ -2242,7 +1980,7 @@ function initializeCharts() {
   const skillLevelCtx = document.getElementById('skillLevelChart').getContext('2d');
   skillLevelChart = new Chart(skillLevelCtx, {
     type: 'line',
-    data: originalSkillLevelChartData,
+    data: cloneChartData(originalSkillLevelChartData),
     options: {
       scales: {
         x: {
@@ -2280,8 +2018,7 @@ function initializeCharts() {
 
 // Initialize everything and hide loading screen
 function initializeApp() {
-  // Apply initial states immediately to prevent flashing
-  applyInitialStates();
+  // Note: init.js already applies initial states to prevent flashing
 
   // Render tables from JSON data
   renderTables();

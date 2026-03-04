@@ -70,29 +70,6 @@ function getDisplayName(playerDir) {
   return PLAYER_CONFIG.displayNames[playerDir] || playerDir;
 }
 
-// Compute rankings for items sorted by value (highest first), handling ties
-function computeRankings(items, valueKey) {
-  const sorted = [...items].sort((a, b) => b[valueKey] - a[valueKey]);
-  const rankings = {};
-  let currentRank = 1;
-  for (let i = 0; i < sorted.length; i++) {
-    if (i > 0 && sorted[i - 1][valueKey] > sorted[i][valueKey]) {
-      currentRank = i + 1;
-    }
-    rankings[sorted[i].player] = currentRank;
-  }
-  return rankings;
-}
-
-function getRankingClass(value, rank) {
-  if (value > 0) {
-    if (rank === 1) return ' rank-1st';
-    if (rank === 2) return ' rank-2nd';
-    if (rank === 3) return ' rank-3rd';
-  }
-  return '';
-}
-
 function getQuestComparisonData(playerDataMap, gameData) {
   const latestPlayerData = {};
   const allQuests = new Set();
@@ -1014,7 +991,8 @@ async function generateStaticHTML() {
       levels: levelComparisonData,
       achievementDiaries: achievementDiaryComparisonData,
       combatAchievements: combatAchievementsComparisonData,
-      musicTracks: { ...musicTracksComparisonData, musicTracksMetadata: gameData.musicTracks || {} },
+      musicTracks: musicTracksComparisonData,
+      musicTracksMetadata: gameData.musicTracks || {},
       collectionLog: collectionLogComparisonData,
       activities: activitiesComparisonData,
       achievements: serializedAchievements
