@@ -2,7 +2,7 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const CACHE_DIR = "cache";
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 
 /**
  * Load cache index and validate version
@@ -158,6 +158,25 @@ export function getNewFilesForPlayer(playerInfo, cachedLatestFile) {
 
   // Return files after the cached one
   return allFiles.slice(cachedIndex);
+}
+
+/**
+ * Load only new snapshot files for a player (after cachedLatestFile)
+ */
+export function loadNewSnapshotsForPlayer(playerInfo, cachedLatestFile) {
+  const { playerDir } = playerInfo;
+  const newFiles = getNewFilesForPlayer(playerInfo, cachedLatestFile);
+
+  // Skip the first file if it's the cached one (already processed)
+  const filesToLoad = cachedLatestFile && newFiles[0] === cachedLatestFile
+    ? newFiles.slice(1)
+    : newFiles;
+
+  return filesToLoad.map(file => {
+    const filePath = path.join(playerDir, file);
+    const data = JSON.parse(readFileSync(filePath, "utf-8"));
+    return { filename: file, data };
+  });
 }
 
 /**

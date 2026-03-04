@@ -10,6 +10,7 @@ import {
   getPlayerList,
   loadAllPlayerData,
   loadAllSnapshotsForPlayer,
+  loadNewSnapshotsForPlayer,
   getNewFilesForPlayer,
   loadGameData
 } from "./cache.js";
@@ -183,87 +184,62 @@ function getMusicTracksComparisonData(playerDataMap) {
 }
 
 /**
- * Generate all chart data using pre-loaded player data with caching.
- * Reads all snapshots once and extracts quest progress, level progress, exp progress, and skill levels.
+ * Generate all chart data using pre-loaded player data with incremental caching.
+ * Only reads new snapshot files since last cache, merges with cached progress data.
  */
 function generateAllChartData(playerDataMap, cacheIndex, gameData) {
-  // Try to load cached chart data
+  // Try to load cached chart data (incremental format with per-player progress)
   const cachedChartData = USE_CACHE ? loadCacheData('chart_data.json') : null;
-
-  // Check if cache is valid (all players have same latest files as when cached)
-  let cacheValid = cachedChartData !== null;
-  if (cacheValid) {
-    for (const player of Object.keys(playerDataMap)) {
-      const cachedLatest = cacheIndex.players[player]?.latestFile;
-      const currentLatest = playerDataMap[player].latestFile;
-      if (cachedLatest !== currentLatest) {
-        cacheValid = false;
-        break;
-      }
-    }
-  }
-
-  if (cacheValid && cachedChartData) {
-    console.log('Using cached chart data');
-    // Reconstruct Date objects from cached data
-    const chartData = reconstructChartData(cachedChartData.chartData);
-    const totalLevelChartData = reconstructChartData(cachedChartData.totalLevelChartData);
-    const totalExpChartData = reconstructChartData(cachedChartData.totalExpChartData);
-
-    // Reconstruct timestamps in skillLevelProgressData
-    const skillLevelProgressData = {
-      availableSkills: cachedChartData.skillLevelProgressData.availableSkills,
-      playerData: {}
-    };
-    for (const [player, entries] of Object.entries(cachedChartData.skillLevelProgressData.playerData)) {
-      skillLevelProgressData.playerData[player] = entries.map(entry => ({
-        ...entry,
-        timestamp: new Date(entry.timestamp)
-      }));
-    }
-
-    return {
-      chartData,
-      totalLevelChartData,
-      totalExpChartData,
-      skillLevelProgressData
-    };
-  }
-
-  console.log('Generating chart data from snapshots...');
+  const hasCache = cachedChartData !== null && cachedChartData.processedFiles;
 
   // Process all files once for all chart types
   const questProgressData = {};
   const totalLevelProgressData = {};
   const totalExpProgressData = {};
   const skillLevelProgressData = {};
-  const allSkills = new Set();
+  const allSkills = new Set(hasCache ? cachedChartData.allSkills : []);
+  const processedFiles = hasCache ? { ...cachedChartData.processedFiles } : {};
+
+  let totalNewFiles = 0;
 
   for (const [player, playerInfo] of Object.entries(playerDataMap)) {
-    questProgressData[player] = [];
-    totalLevelProgressData[player] = [];
-    totalExpProgressData[player] = [];
-    skillLevelProgressData[player] = [];
+    // Restore cached per-player progress data if available
+    if (hasCache && cachedChartData.questProgressData?.[player]) {
+      questProgressData[player] = cachedChartData.questProgressData[player].map(e => ({ ...e, timestamp: new Date(e.timestamp) }));
+      totalLevelProgressData[player] = cachedChartData.totalLevelProgressData[player].map(e => ({ ...e, timestamp: new Date(e.timestamp) }));
+      totalExpProgressData[player] = cachedChartData.totalExpProgressData[player].map(e => ({ ...e, timestamp: new Date(e.timestamp) }));
+      skillLevelProgressData[player] = cachedChartData.skillLevelProgressData[player].map(e => ({ ...e, timestamp: new Date(e.timestamp) }));
+    } else {
+      questProgressData[player] = [];
+      totalLevelProgressData[player] = [];
+      totalExpProgressData[player] = [];
+      skillLevelProgressData[player] = [];
+    }
 
-    // Load all snapshots for this player
-    const snapshots = loadAllSnapshotsForPlayer(playerInfo);
+    // Load only new snapshots since last processed file
+    const cachedLatestFile = processedFiles[player] || null;
+    const snapshots = cachedLatestFile
+      ? loadNewSnapshotsForPlayer(playerInfo, cachedLatestFile)
+      : loadAllSnapshotsForPlayer(playerInfo);
+
+    if (snapshots.length > 0) {
+      totalNewFiles += snapshots.length;
+      console.log(`Processing ${snapshots.length} new chart files for ${player}`);
+    }
 
     for (const { filename, data } of snapshots) {
       const timestamp = new Date(filename.split('_')[1].replace('.json', ''));
 
-      // Quest progress
       if (data.quests) {
         const completedQuests = Object.values(data.quests).filter(status => status === 2).length;
         questProgressData[player].push({ timestamp, completedQuests });
       }
 
-      // Total level progress
       if (data.levels) {
         const totalLevel = Object.values(data.levels).reduce((sum, level) => sum + (level || 0), 0);
         totalLevelProgressData[player].push({ timestamp, totalLevel });
       }
 
-      // Total exp progress
       if (data.skills && Array.isArray(data.skills)) {
         const overallSkill = data.skills.find(s => s.name === 'Overall');
         if (overallSkill && overallSkill.xp > 0) {
@@ -271,14 +247,13 @@ function generateAllChartData(playerDataMap, cacheIndex, gameData) {
         }
       }
 
-      // Skill level progress
       if (data.levels) {
         Object.keys(data.levels).forEach(skill => allSkills.add(skill));
         skillLevelProgressData[player].push({ timestamp, skillLevels: { ...data.levels } });
       }
     }
 
-    // Sort and aggregate to daily
+    // Sort and aggregate to daily (cheap on already-aggregated data + few new entries)
     questProgressData[player].sort((a, b) => a.timestamp - b.timestamp);
     questProgressData[player] = groupLatestPerDay(questProgressData[player]);
 
@@ -290,23 +265,31 @@ function generateAllChartData(playerDataMap, cacheIndex, gameData) {
 
     skillLevelProgressData[player].sort((a, b) => a.timestamp - b.timestamp);
     skillLevelProgressData[player] = groupLatestPerDay(skillLevelProgressData[player]);
+
+    // Track last processed file
+    processedFiles[player] = playerInfo.allFiles[playerInfo.allFiles.length - 1];
   }
 
-  // Generate chart data
+  if (totalNewFiles === 0 && hasCache) {
+    console.log('Using cached chart data (no new files)');
+  } else {
+    console.log(`Processed ${totalNewFiles} new chart snapshot files`);
+  }
+
+  // Generate chart data from progress arrays
   const chartData = generateChartData(questProgressData);
   const totalLevelChartData = generateTotalLevelChartData(totalLevelProgressData);
   const totalExpChartData = generateTotalExpChartData(totalExpProgressData);
 
-  // Cache the chart data
+  // Cache the per-player progress data for incremental updates
   if (USE_CACHE) {
     saveCacheData('chart_data.json', {
-      chartData,
-      totalLevelChartData,
-      totalExpChartData,
-      skillLevelProgressData: {
-        playerData: skillLevelProgressData,
-        availableSkills: [...allSkills].sort()
-      }
+      processedFiles,
+      allSkills: [...allSkills].sort(),
+      questProgressData,
+      totalLevelProgressData,
+      totalExpProgressData,
+      skillLevelProgressData
     });
   }
 
@@ -320,15 +303,6 @@ function generateAllChartData(playerDataMap, cacheIndex, gameData) {
     }
   };
 }
-
-/**
- * Reconstruct chart data from cache (no Date conversion needed since we store formatted strings)
- */
-function reconstructChartData(chartData) {
-  // Chart data stores formatted strings, so no reconstruction needed
-  return chartData;
-}
-
 
 
 function generateTimeSeriesChartData(playerData, valueExtractor) {
