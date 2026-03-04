@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const CACHE_DIR = "cache";
@@ -9,20 +9,14 @@ const CACHE_VERSION = 1;
  */
 export function loadCacheIndex() {
   const indexPath = path.join(CACHE_DIR, "index.json");
-  if (!existsSync(indexPath)) {
-    return { version: CACHE_VERSION, players: {} };
-  }
-
   try {
     const data = JSON.parse(readFileSync(indexPath, "utf-8"));
-    // Invalidate cache if version mismatch
     if (data.version !== CACHE_VERSION) {
       console.log(`Cache version mismatch (got ${data.version}, expected ${CACHE_VERSION}), rebuilding...`);
       return { version: CACHE_VERSION, players: {} };
     }
     return data;
-  } catch (error) {
-    console.warn("Failed to load cache index:", error.message);
+  } catch {
     return { version: CACHE_VERSION, players: {} };
   }
 }
@@ -41,14 +35,9 @@ export function saveCacheIndex(index) {
  */
 export function loadCacheData(filename) {
   const filePath = path.join(CACHE_DIR, filename);
-  if (!existsSync(filePath)) {
-    return null;
-  }
-
   try {
     return JSON.parse(readFileSync(filePath, "utf-8"));
-  } catch (error) {
-    console.warn(`Failed to load cache file ${filename}:`, error.message);
+  } catch {
     return null;
   }
 }
@@ -66,9 +55,7 @@ export function saveCacheData(filename, data) {
  * Ensure cache directory exists
  */
 function ensureCacheDir() {
-  if (!existsSync(CACHE_DIR)) {
-    mkdirSync(CACHE_DIR, { recursive: true });
-  }
+  mkdirSync(CACHE_DIR, { recursive: true });
 }
 
 /**
@@ -76,16 +63,13 @@ function ensureCacheDir() {
  */
 export function getLatestFileForPlayer(player) {
   const playerDir = path.join("player_data", player);
-  if (!existsSync(playerDir)) {
+  try {
+    const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
+    if (files.length === 0) return null;
+    return files.sort().pop();
+  } catch {
     return null;
   }
-
-  const files = readdirSync(playerDir).filter(f => f.endsWith('.json'));
-  if (files.length === 0) {
-    return null;
-  }
-
-  return files.sort().pop();
 }
 
 /**
@@ -105,10 +89,11 @@ export function isPlayerCacheValid(cacheIndex, player) {
  * Get all player directories
  */
 export function getPlayerList() {
-  if (!existsSync("player_data")) {
+  try {
+    return readdirSync("player_data").filter(p => !p.startsWith('.'));
+  } catch {
     return [];
   }
-  return readdirSync("player_data").filter(p => !p.startsWith('.'));
 }
 
 /**

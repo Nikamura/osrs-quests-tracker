@@ -1,15 +1,9 @@
-import { JSDOM } from 'jsdom';
-import fs from 'fs';
-import path from 'path';
+import { makeAbsoluteUrl, fetchWikiPage, saveGameData } from './fetch_utils.js';
 
 async function fetchCollectionLog() {
     try {
         console.log('Fetching collection log data...');
-        const page = await fetch("https://oldschool.runescape.wiki/w/Collection_log/Table");
-        const text = await page.text();
-
-        const dom = new JSDOM(text);
-        const document = dom.window.document;
+        const document = await fetchWikiPage("https://oldschool.runescape.wiki/w/Collection_log/Table");
 
         const table = document.querySelector('table.wikitable.lighttable.sortable');
 
@@ -21,17 +15,6 @@ async function fetchCollectionLog() {
         console.log('Parsing table data...');
 
         const rows = Array.from(table.querySelectorAll('tr')).slice(1);
-
-        const makeAbsoluteUrl = (url) => {
-            if (!url) return null;
-            if (url.startsWith('//')) {
-                return `https:${url}`;
-            }
-            if (url.startsWith('/')) {
-                return `https://oldschool.runescape.wiki${url}`;
-            }
-            return url;
-        };
 
         const collectionLog = rows.map(row => {
             const cells = Array.from(row.querySelectorAll('td'));
@@ -57,7 +40,7 @@ async function fetchCollectionLog() {
             const collection = collectionLinkElement?.textContent.trim() || collectionCell.textContent.trim();
             const collectionLink = collectionLinkElement?.getAttribute('href');
 
-            const entry = {
+            return {
                 itemId: itemId || null,
                 itemName: itemName,
                 itemLink: makeAbsoluteUrl(itemLink),
@@ -66,23 +49,10 @@ async function fetchCollectionLog() {
                 collection: collection,
                 collectionLink: makeAbsoluteUrl(collectionLink),
             };
-
-            return entry;
         }).filter(item => item !== null && item.itemName);
 
         console.log(`Parsed ${collectionLog.length} collection log items`);
-
-        const gameDataDir = 'game_data';
-        if (!fs.existsSync(gameDataDir)) {
-            fs.mkdirSync(gameDataDir, { recursive: true });
-            console.log('Created game_data directory');
-        }
-
-        const filePath = path.join(gameDataDir, 'collection_log.json');
-        const jsonData = JSON.stringify(collectionLog, null, 2);
-        fs.writeFileSync(filePath, jsonData);
-
-        console.log(`Collection log saved to ${filePath}`);
+        saveGameData('collection_log.json', collectionLog);
         console.log('Sample data:', collectionLog.slice(0, 2));
 
         return collectionLog;

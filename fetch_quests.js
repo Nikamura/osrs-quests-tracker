@@ -1,29 +1,15 @@
-import { JSDOM } from 'jsdom'
-import fs from 'fs'
-import path from 'path'
+import { makeAbsoluteUrl, fetchWikiPage, saveGameData } from './fetch_utils.js';
 
 async function fetchQuests() {
     try {
         console.log('Fetching quests list...')
-        const page = await fetch('https://oldschool.runescape.wiki/w/Quests/List')
-        const text = await page.text()
-
-        const dom = new JSDOM(text)
-        const document = dom.window.document
-
-        const makeAbsoluteUrl = (url) => {
-            if (!url) return null
-            if (url.startsWith('//')) return `https:${url}`
-            if (url.startsWith('/')) return `https://oldschool.runescape.wiki${url}`
-            return url
-        }
+        const document = await fetchWikiPage('https://oldschool.runescape.wiki/w/Quests/List');
 
         const findSectionQuestTable = (headingText) => {
             const isQuestHeader = (table) => {
                 const headerRow = table.querySelector('tr')
                 if (!headerRow) return false
                 const headers = Array.from(headerRow.querySelectorAll('th')).map(th => th.textContent.trim().toLowerCase())
-                // Expect at least these columns for the quest list tables
                 const hasCore = headers.includes('name') && headers.includes('difficulty') && headers.includes('length')
                 return hasCore
             }
@@ -32,7 +18,6 @@ async function fetchQuests() {
             const heading = headings.find(h => h.textContent.trim().toLowerCase().includes(headingText))
             if (!heading) return null
 
-            // Walk siblings until the next section heading
             let el = heading.nextElementSibling
             while (el && !(el.tagName && /^h2|h3$/i.test(el.tagName))) {
                 if (el.tagName && el.tagName.toLowerCase() === 'table' && el.classList.contains('wikitable')) {
@@ -69,7 +54,6 @@ async function fetchQuests() {
                 const maxColumns = Math.max(...rows.map(r => r.querySelectorAll('td').length))
                 for (let c = 0; c < maxColumns; c++) {
                     if (excluded.has(c)) continue
-                    // Exclude first column if it's the row number
                     if (headers[c] && headers[c].replace(/\s+/g, '') === '#') continue
                     let numericCount = 0
                     let validCount = 0
@@ -92,7 +76,6 @@ async function fetchQuests() {
                         bestIdx = c
                     }
                 }
-                // Consider it QP if majority of sampled cells look numeric
                 if (bestScore >= 0.6) qpIndex = bestIdx
             }
 
@@ -160,15 +143,7 @@ async function fetchQuests() {
         const allQuests = [...f2p, ...members, ...mini]
         console.log(`Parsed quests: F2P=${f2p.length}, Members=${members.length}, Miniquests=${mini.length}, Total=${allQuests.length}`)
 
-        const gameDataDir = 'game_data'
-        if (!fs.existsSync(gameDataDir)) {
-            fs.mkdirSync(gameDataDir, { recursive: true })
-            console.log('Created game_data directory')
-        }
-
-        const filePath = path.join(gameDataDir, 'quests.json')
-        fs.writeFileSync(filePath, JSON.stringify(allQuests, null, 2))
-        console.log(`Quests saved to ${filePath}`)
+        saveGameData('quests.json', allQuests)
         console.log('Sample data:', allQuests.slice(0, 2))
 
         return allQuests
@@ -177,7 +152,4 @@ async function fetchQuests() {
     }
 }
 
-// Run the function
 fetchQuests()
-
-

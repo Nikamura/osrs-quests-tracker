@@ -1,15 +1,9 @@
-import { JSDOM } from 'jsdom'
-import fs from 'fs'
-import path from 'path'
+import { makeAbsoluteUrl, fetchWikiPage, saveGameData } from './fetch_utils.js';
 
 async function fetchMusicTracks() {
   try {
     console.log('Fetching music tracks data...')
-    const page = await fetch('https://oldschool.runescape.wiki/w/Music')
-    const text = await page.text()
-
-    const dom = new JSDOM(text)
-    const document = dom.window.document
+    const document = await fetchWikiPage('https://oldschool.runescape.wiki/w/Music');
 
     // Find the track list table by headers
     const tables = Array.from(document.querySelectorAll('table.wikitable'))
@@ -28,13 +22,6 @@ async function fetchMusicTracks() {
     }
 
     console.log('Parsing music tracks table...')
-
-    const makeAbsoluteUrl = (url) => {
-      if (!url) return null
-      if (url.startsWith('//')) return `https:${url}`
-      if (url.startsWith('/')) return `https://oldschool.runescape.wiki${url}`
-      return url
-    }
 
     const rows = Array.from(table.querySelectorAll('tr')).filter(tr => tr.querySelectorAll('td').length >= 5)
 
@@ -80,18 +67,7 @@ async function fetchMusicTracks() {
     })
 
     console.log(`Parsed ${musicTracks.length} music tracks`)
-
-    const gameDataDir = 'game_data'
-    if (!fs.existsSync(gameDataDir)) {
-      fs.mkdirSync(gameDataDir, { recursive: true })
-      console.log('Created game_data directory')
-    }
-
-    const filePath = path.join(gameDataDir, 'music_tracks.json')
-    const jsonData = JSON.stringify(musicTracks, null, 2)
-    fs.writeFileSync(filePath, jsonData)
-
-    console.log(`Music tracks saved to ${filePath}`)
+    saveGameData('music_tracks.json', musicTracks)
     console.log('Sample data:', musicTracks.slice(0, 2))
 
     return musicTracks
@@ -100,7 +76,4 @@ async function fetchMusicTracks() {
   }
 }
 
-// Run the function
 fetchMusicTracks()
-
-

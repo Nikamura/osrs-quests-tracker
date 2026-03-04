@@ -70,6 +70,29 @@ function getDisplayName(playerDir) {
   return PLAYER_CONFIG.displayNames[playerDir] || playerDir;
 }
 
+// Compute rankings for items sorted by value (highest first), handling ties
+function computeRankings(items, valueKey) {
+  const sorted = [...items].sort((a, b) => b[valueKey] - a[valueKey]);
+  const rankings = {};
+  let currentRank = 1;
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i - 1][valueKey] > sorted[i][valueKey]) {
+      currentRank = i + 1;
+    }
+    rankings[sorted[i].player] = currentRank;
+  }
+  return rankings;
+}
+
+function getRankingClass(value, rank) {
+  if (value > 0) {
+    if (rank === 1) return ' rank-1st';
+    if (rank === 2) return ' rank-2nd';
+    if (rank === 3) return ' rank-3rd';
+  }
+  return '';
+}
+
 function getQuestComparisonData(playerDataMap, gameData) {
   const latestPlayerData = {};
   const allQuests = new Set();
@@ -111,7 +134,7 @@ function generateQuestComparisonTable(comparisonData) {
   }
 
   let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
-  tableHtml += '<table class="interactive quest-comparison-table" style="width: 100%;">';
+  tableHtml += '<table class="interactive sticky-header quest-comparison-table" style="width: 100%;">';
 
   // Header
   tableHtml += '<thead><tr><th>Quest</th>';
@@ -157,29 +180,14 @@ function generateQuestComparisonTable(comparisonData) {
 
   // Rankings for totals
   const totalsForRanking = players.map((player, idx) => ({ player, total: totalCompleted[idx] }));
-  const sortedTotals = [...totalsForRanking].sort((a, b) => b.total - a.total);
-  const totalRankings = {};
-  let currentRank = 1;
-  for (let i = 0; i < sortedTotals.length; i++) {
-    const { player, total } = sortedTotals[i];
-    if (i > 0 && sortedTotals[i - 1].total > total) {
-      currentRank = i + 1;
-    }
-    totalRankings[player] = currentRank;
-  }
+  const totalRankings = computeRankings(totalsForRanking, 'total');
 
-  tableHtml += '<tr class="quest-total-row">';
+  tableHtml += '<tr class="sticky-total-row quest-total-row">';
   tableHtml += '<td style="font-size: 1.1em; font-weight: bold;">Total Quests Completed</td>';
   for (let i = 0; i < players.length; i++) {
     const player = players[i];
     const total = totalCompleted[i];
-    let rankingClass = '';
-    if (total > 0) {
-      const rank = totalRankings[player];
-      if (rank === 1) rankingClass = ' rank-1st';
-      else if (rank === 2) rankingClass = ' rank-2nd';
-      else if (rank === 3) rankingClass = ' rank-3rd';
-    }
+    const rankingClass = getRankingClass(total, totalRankings[player]);
     tableHtml += `<td class="level-cell${rankingClass}" data-player="${player}" data-total="${total}" style="font-size: 1.1em; text-align: center;">${total}</td>`;
   }
   tableHtml += '</tr>';
@@ -215,7 +223,7 @@ function generateLevelComparisonTable(comparisonData) {
   }
 
   let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
-  tableHtml += '<table class="interactive level-comparison-table" style="width: 100%;">';
+  tableHtml += '<table class="interactive sticky-header level-comparison-table" style="width: 100%;">';
 
   // Header
   tableHtml += '<thead><tr><th>Skill</th>';
@@ -236,17 +244,7 @@ function generateLevelComparisonTable(comparisonData) {
       level: playerLevels[player]?.[skill] ?? 0
     }));
 
-    // Sort by level (highest first) and assign rankings
-    const sortedLevels = [...skillLevels].sort((a, b) => b.level - a.level);
-    const rankings = {};
-    let currentRank = 1;
-    for (let i = 0; i < sortedLevels.length; i++) {
-      const { player, level } = sortedLevels[i];
-      if (i > 0 && sortedLevels[i - 1].level > level) {
-        currentRank = i + 1;
-      }
-      rankings[player] = currentRank;
-    }
+    const rankings = computeRankings(skillLevels, 'level');
 
     for (const player of players) {
       const level = playerLevels[player]?.[skill] ?? 0;
@@ -254,14 +252,7 @@ function generateLevelComparisonTable(comparisonData) {
       if (level >= 80) levelClass = 'level-high';
       else if (level >= 50) levelClass = 'level-medium';
 
-      // Add ranking class if level > 0
-      let rankingClass = '';
-      if (level > 0) {
-        const rank = rankings[player];
-        if (rank === 1) rankingClass = ' rank-1st';
-        else if (rank === 2) rankingClass = ' rank-2nd';
-        else if (rank === 3) rankingClass = ' rank-3rd';
-      }
+      const rankingClass = getRankingClass(level, rankings[player]);
 
       tableHtml += `<td class="level-cell ${levelClass}${rankingClass}" data-player="${player}" data-skill="${skill}" data-level="${level}">${level}</td>`;
     }
@@ -269,7 +260,7 @@ function generateLevelComparisonTable(comparisonData) {
   }
 
   // Add total level row (sticky)
-  tableHtml += '<tr class="level-total-row">';
+  tableHtml += '<tr class="sticky-total-row level-total-row">';
   tableHtml += '<td style="font-weight: bold; font-size: 1.1em;">Total Level</td>';
 
   // Calculate total levels for each player
@@ -280,17 +271,7 @@ function generateLevelComparisonTable(comparisonData) {
     return { player, total };
   });
 
-  // Sort by total (highest first) and assign rankings
-  const sortedTotals = [...totalLevels].sort((a, b) => b.total - a.total);
-  const totalRankings = {};
-  let currentRank = 1;
-  for (let i = 0; i < sortedTotals.length; i++) {
-    const { player, total } = sortedTotals[i];
-    if (i > 0 && sortedTotals[i - 1].total > total) {
-      currentRank = i + 1;
-    }
-    totalRankings[player] = currentRank;
-  }
+  const totalRankings = computeRankings(totalLevels, 'total');
 
   for (const player of players) {
     const totalLevel = totalLevels.find(t => t.player === player)?.total ?? 0;
@@ -298,14 +279,7 @@ function generateLevelComparisonTable(comparisonData) {
     if (totalLevel >= 1600) levelClass = 'level-high';
     else if (totalLevel >= 1000) levelClass = 'level-medium';
 
-    // Add ranking class
-    let rankingClass = '';
-    if (totalLevel > 0) {
-      const rank = totalRankings[player];
-      if (rank === 1) rankingClass = ' rank-1st';
-      else if (rank === 2) rankingClass = ' rank-2nd';
-      else if (rank === 3) rankingClass = ' rank-3rd';
-    }
+    const rankingClass = getRankingClass(totalLevel, totalRankings[player]);
 
     tableHtml += `<td class="level-cell ${levelClass}${rankingClass}" data-player="${player}" data-skill="Total Level" data-level="${totalLevel}" style="font-size: 1.1em;">${totalLevel}</td>`;
   }
@@ -343,7 +317,7 @@ function generateAchievementDiaryComparisonTable(comparisonData) {
   }
 
   let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
-  tableHtml += '<table class="interactive achievement-diaries-table" style="width: 100%;">';
+  tableHtml += '<table class="interactive sticky-header achievement-diaries-table" style="width: 100%;">';
 
   // Header
   tableHtml += '<thead><tr><th>Achievement Diary</th>';
@@ -406,7 +380,7 @@ function generateAchievementDiaryComparisonTable(comparisonData) {
     }
   }
   // Add sticky totals row for diaries
-  tableHtml += '<tr class="achievement-diaries-total-row">';
+  tableHtml += '<tr class="sticky-total-row achievement-diaries-total-row">';
   tableHtml += '<td style="font-weight: bold; font-size: 1.1em;">Total Completed</td>';
 
   // Calculate total number of completed diary difficulties per player
@@ -428,27 +402,12 @@ function generateAchievementDiaryComparisonTable(comparisonData) {
 
   // Rankings
   const totalsForRanking = players.map((player, idx) => ({ player, total: totals[idx] }));
-  const sortedTotals = [...totalsForRanking].sort((a, b) => b.total - a.total);
-  const totalRankings = {};
-  let currentRank = 1;
-  for (let i = 0; i < sortedTotals.length; i++) {
-    const { player, total } = sortedTotals[i];
-    if (i > 0 && sortedTotals[i - 1].total > total) {
-      currentRank = i + 1;
-    }
-    totalRankings[player] = currentRank;
-  }
+  const totalRankings = computeRankings(totalsForRanking, 'total');
 
   for (let i = 0; i < players.length; i++) {
     const player = players[i];
     const total = totals[i];
-    let rankingClass = '';
-    if (total > 0) {
-      const rank = totalRankings[player];
-      if (rank === 1) rankingClass = ' rank-1st';
-      else if (rank === 2) rankingClass = ' rank-2nd';
-      else if (rank === 3) rankingClass = ' rank-3rd';
-    }
+    const rankingClass = getRankingClass(total, totalRankings[player]);
     tableHtml += `<td class="level-cell${rankingClass}" data-player="${player}" data-total="${total}" style="font-size: 1.1em; text-align: center;">${total}</td>`;
   }
   tableHtml += '</tr>';
@@ -513,7 +472,7 @@ function generateCombatAchievementsComparisonTable(comparisonData) {
   });
 
   let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
-  tableHtml += '<table class="interactive combat-achievements-table" style="width: 100%;">';
+  tableHtml += '<table class="interactive sticky-header combat-achievements-table" style="width: 100%;">';
 
   // Header
   tableHtml += '<thead><tr><th style="width: 50px;">Tier</th><th>Monster</th><th>Achievement</th>';
@@ -568,7 +527,7 @@ function generateCombatAchievementsComparisonTable(comparisonData) {
   }
 
   // Add total achievements row (sticky at bottom)
-  tableHtml += '<tr class="combat-achievements-total-row">';
+  tableHtml += '<tr class="sticky-total-row combat-achievements-total-row">';
   tableHtml += '<td></td>';
   tableHtml += '<td></td>';
   tableHtml += '<td style="font-size: 1.1em;">Total Achievements</td>';
@@ -579,28 +538,11 @@ function generateCombatAchievementsComparisonTable(comparisonData) {
     total: playerCombatAchievements[player]?.length ?? 0
   }));
 
-  // Sort by total (highest first) and assign rankings
-  const sortedTotals = [...totalAchievements].sort((a, b) => b.total - a.total);
-  const totalRankings = {};
-  let currentRank = 1;
-  for (let i = 0; i < sortedTotals.length; i++) {
-    const { player, total } = sortedTotals[i];
-    if (i > 0 && sortedTotals[i - 1].total > total) {
-      currentRank = i + 1;
-    }
-    totalRankings[player] = currentRank;
-  }
+  const totalRankings = computeRankings(totalAchievements, 'total');
 
   for (const player of players) {
     const total = totalAchievements.find(t => t.player === player)?.total ?? 0;
-
-    let rankingClass = '';
-    if (total > 0) {
-      const rank = totalRankings[player];
-      if (rank === 1) rankingClass = ' rank-1st';
-      else if (rank === 2) rankingClass = ' rank-2nd';
-      else if (rank === 3) rankingClass = ' rank-3rd';
-    }
+    const rankingClass = getRankingClass(total, totalRankings[player]);
 
     tableHtml += `<td class="level-cell${rankingClass}" data-player="${player}" data-total="${total}" style="font-size: 1.1em; text-align: center;">${total}</td>`;
   }
@@ -638,7 +580,7 @@ function generateMusicTracksComparisonTable(comparisonData, musicTracksData) {
   }
 
   let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
-  tableHtml += '<table class="interactive music-tracks-table" style="width: 100%;">';
+  tableHtml += '<table class="interactive sticky-header music-tracks-table" style="width: 100%;">';
 
   // Header
   tableHtml += '<thead><tr><th>Music Track</th>';
@@ -689,7 +631,7 @@ function generateMusicTracksComparisonTable(comparisonData, musicTracksData) {
   }
 
   // Add total music tracks row
-  tableHtml += '<tr class="music-tracks-total-row">';
+  tableHtml += '<tr class="sticky-total-row music-tracks-total-row">';
   tableHtml += '<td style="font-size: 1.1em; font-weight: bold;">Total Tracks</td>';
 
   // Calculate total unlocked tracks for each player
@@ -699,29 +641,11 @@ function generateMusicTracksComparisonTable(comparisonData, musicTracksData) {
     return { player, total };
   });
 
-  // Sort totals to determine rankings
-  const sortedTotals = [...totalTracks].sort((a, b) => b.total - a.total);
-  const totalRankings = {};
-  let currentRank = 1;
-  for (let i = 0; i < sortedTotals.length; i++) {
-    const { player, total } = sortedTotals[i];
-    if (i > 0 && sortedTotals[i - 1].total > total) {
-      currentRank = i + 1;
-    }
-    totalRankings[player] = currentRank;
-  }
+  const totalRankings = computeRankings(totalTracks, 'total');
 
-  // Render total cells with ranking classes
   for (const player of players) {
     const total = totalTracks.find(t => t.player === player)?.total ?? 0;
-
-    let rankingClass = '';
-    if (total > 0) {
-      const rank = totalRankings[player];
-      if (rank === 1) rankingClass = ' rank-1st';
-      else if (rank === 2) rankingClass = ' rank-2nd';
-      else if (rank === 3) rankingClass = ' rank-3rd';
-    }
+    const rankingClass = getRankingClass(total, totalRankings[player]);
 
     tableHtml += `<td class="level-cell${rankingClass}" data-player="${player}" data-total="${total}" style="font-size: 1.1em; text-align: center;">${total}</td>`;
   }
@@ -881,22 +805,20 @@ function reconstructChartData(chartData) {
 
 
 
-function generateChartData(playerData) {
+function generateTimeSeriesChartData(playerData, valueExtractor, getLabel) {
   const datasets = [];
   const allTimestamps = new Set();
   const colors = CHART_COLORS;
   let colorIndex = 0;
+  const labelFn = getLabel || (player => getDisplayName(player));
 
-  // First collect all timestamps
   for (const player in playerData) {
     const data = playerData[player];
     data.forEach(d => allTimestamps.add(d.timestamp.getTime()));
   }
 
-  // Sort timestamps numerically
   const sortedTimestamps = [...allTimestamps].sort((a, b) => a - b);
 
-  // Format timestamps after sorting
   const labels = sortedTimestamps.map(timestamp => {
     return new Date(timestamp).toLocaleString('en-US', {
       year: 'numeric',
@@ -914,7 +836,6 @@ function generateChartData(playerData) {
     const color = colors[colorIndex % colors.length];
     colorIndex++;
 
-    // Format data using the same timestamp formatting
     const formattedData = data.map(d => ({
       x: d.timestamp.toLocaleString('en-US', {
         year: 'numeric',
@@ -925,11 +846,11 @@ function generateChartData(playerData) {
         hour12: false,
         timeZone: 'Europe/Vilnius'
       }),
-      y: d.completedQuests
+      y: valueExtractor(d)
     }));
 
     datasets.push({
-      label: getDisplayName(player),
+      label: labelFn(player),
       data: formattedData,
       borderColor: color,
       backgroundColor: color + '33',
@@ -937,134 +858,19 @@ function generateChartData(playerData) {
     });
   }
 
-  return {
-    labels,
-    datasets
-  };
+  return { labels, datasets };
+}
+
+function generateChartData(playerData) {
+  return generateTimeSeriesChartData(playerData, d => d.completedQuests);
 }
 
 function generateTotalLevelChartData(playerData) {
-  const datasets = [];
-  const allTimestamps = new Set();
-  const colors = CHART_COLORS;
-  let colorIndex = 0;
-
-  // First collect all timestamps
-  for (const player in playerData) {
-    const data = playerData[player];
-    data.forEach(d => allTimestamps.add(d.timestamp.getTime()));
-  }
-
-  // Sort timestamps numerically
-  const sortedTimestamps = [...allTimestamps].sort((a, b) => a - b);
-
-  // Format timestamps after sorting
-  const labels = sortedTimestamps.map(timestamp => {
-    return new Date(timestamp).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      timeZone: 'Europe/Vilnius'
-    });
-  });
-
-  for (const player in playerData) {
-    const data = playerData[player];
-    const color = colors[colorIndex % colors.length];
-    colorIndex++;
-
-    // Format data using the same timestamp formatting
-    const formattedData = data.map(d => ({
-      x: d.timestamp.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'Europe/Vilnius'
-      }),
-      y: d.totalLevel
-    }));
-
-    datasets.push({
-      label: getDisplayName(player),
-      data: formattedData,
-      borderColor: color,
-      backgroundColor: color + '33',
-      fill: false,
-    });
-  }
-
-  return {
-    labels,
-    datasets
-  };
+  return generateTimeSeriesChartData(playerData, d => d.totalLevel);
 }
 
 function generateSkillLevelChartData(playerData, selectedSkill) {
-  const datasets = [];
-  const allTimestamps = new Set();
-  const colors = CHART_COLORS;
-  let colorIndex = 0;
-
-  // First collect all timestamps
-  for (const player in playerData) {
-    const data = playerData[player];
-    data.forEach(d => allTimestamps.add(d.timestamp.getTime()));
-  }
-
-  // Sort timestamps numerically
-  const sortedTimestamps = [...allTimestamps].sort((a, b) => a - b);
-
-  // Format timestamps after sorting
-  const labels = sortedTimestamps.map(timestamp => {
-    return new Date(timestamp).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      timeZone: 'Europe/Vilnius'
-    });
-  });
-
-  for (const player in playerData) {
-    const data = playerData[player];
-    const color = colors[colorIndex % colors.length];
-    colorIndex++;
-
-    // Format data using the same timestamp formatting
-    const formattedData = data.map(d => ({
-      x: d.timestamp.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'Europe/Vilnius'
-      }),
-      y: d.skillLevels[selectedSkill] || 1
-    }));
-
-    datasets.push({
-      label: getDisplayName(player),
-      data: formattedData,
-      borderColor: color,
-      backgroundColor: color + '33',
-      fill: false,
-    });
-  }
-
-  return {
-    labels,
-    datasets
-  };
+  return generateTimeSeriesChartData(playerData, d => d.skillLevels[selectedSkill] || 1);
 }
 
 function getAchievementsData(playerDataMap, cacheIndex, gameData) {
@@ -1114,13 +920,15 @@ function getAchievementsData(playerDataMap, cacheIndex, gameData) {
     console.log(`Processing ${allFiles.length - startIndex} new achievement files for ${player}`);
 
     // Process file pairs starting from the first new file
+    // Cache previous data to avoid re-reading the same file
+    let cachedPreviousData = null;
     for (let i = startIndex; i < allFiles.length; i++) {
       const currentFile = allFiles[i];
       const previousFile = allFiles[i - 1];
 
       try {
         const currentData = JSON.parse(readFileSync(path.join(playerDir, currentFile), "utf-8"));
-        const previousData = JSON.parse(readFileSync(path.join(playerDir, previousFile), "utf-8"));
+        const previousData = cachedPreviousData || JSON.parse(readFileSync(path.join(playerDir, previousFile), "utf-8"));
 
         const currentTimestamp = new Date(currentFile.split('_')[1].replace('.json', ''));
         const previousTimestamp = new Date(previousFile.split('_')[1].replace('.json', ''));
@@ -1359,8 +1167,10 @@ function getAchievementsData(playerDataMap, cacheIndex, gameData) {
           }
         }
 
+        cachedPreviousData = currentData;
       } catch (error) {
         console.error(`Error processing files for ${player}:`, error);
+        cachedPreviousData = null;
         continue;
       }
     }
@@ -1594,7 +1404,7 @@ async function generateCollectionLogComparisonTable(comparisonData) {
 
   let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
 
-  tableHtml += '<table class="interactive collection-log-table" style="width: 100%;">';
+  tableHtml += '<table class="interactive sticky-header collection-log-table" style="width: 100%;">';
 
   // Header
   tableHtml += '<thead><tr>';
@@ -1644,7 +1454,7 @@ async function generateCollectionLogComparisonTable(comparisonData) {
   }
 
   // Add total items row
-  tableHtml += '<tr class="collection-log-total-row">';
+  tableHtml += '<tr class="sticky-total-row collection-log-total-row">';
   tableHtml += '<td></td>';
   tableHtml += '<td style="font-size: 1.1em;">Total Items</td>';
 
@@ -1654,28 +1464,11 @@ async function generateCollectionLogComparisonTable(comparisonData) {
     total: playerCollectionLogs[player]?.length ?? 0
   }));
 
-  // Sort by total (highest first) and assign rankings
-  const sortedTotals = [...totalItems].sort((a, b) => b.total - a.total);
-  const totalRankings = {};
-  let currentRank = 1;
-  for (let i = 0; i < sortedTotals.length; i++) {
-    const { player, total } = sortedTotals[i];
-    if (i > 0 && sortedTotals[i - 1].total > total) {
-      currentRank = i + 1;
-    }
-    totalRankings[player] = currentRank;
-  }
+  const totalRankings = computeRankings(totalItems, 'total');
 
   for (const player of players) {
     const total = totalItems.find(t => t.player === player)?.total ?? 0;
-
-    let rankingClass = '';
-    if (total > 0) {
-      const rank = totalRankings[player];
-      if (rank === 1) rankingClass = ' rank-1st';
-      else if (rank === 2) rankingClass = ' rank-2nd';
-      else if (rank === 3) rankingClass = ' rank-3rd';
-    }
+    const rankingClass = getRankingClass(total, totalRankings[player]);
 
     tableHtml += `<td class="level-cell${rankingClass}" data-player="${player}" data-total="${total}" style="font-size: 1.1em; text-align: center;">${total}</td>`;
   }
@@ -1767,65 +1560,7 @@ function generateWindowVisibilityUI() {
 // Chart Options UI removed from Configuration; control moved into Total XP window
 
 function generateTotalExpChartData(playerData) {
-  const datasets = [];
-  const allTimestamps = new Set();
-  const colors = CHART_COLORS;
-  let colorIndex = 0;
-
-  // First collect all timestamps
-  for (const player in playerData) {
-    const data = playerData[player];
-    data.forEach(d => allTimestamps.add(d.timestamp.getTime()));
-  }
-
-  // Sort timestamps numerically
-  const sortedTimestamps = [...allTimestamps].sort((a, b) => a - b);
-
-  // Format timestamps after sorting
-  const labels = sortedTimestamps.map(timestamp => {
-    return new Date(timestamp).toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      timeZone: 'Europe/Vilnius'
-    });
-  });
-
-  for (const player in playerData) {
-    const data = playerData[player];
-    const color = colors[colorIndex % colors.length];
-    colorIndex++;
-
-    // Format data using the same timestamp formatting
-    const formattedData = data.map(d => ({
-      x: d.timestamp.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'Europe/Vilnius'
-      }),
-      y: d.totalExp
-    }));
-
-    datasets.push({
-      label: getDisplayName(player),
-      data: formattedData,
-      borderColor: color,
-      backgroundColor: color + '33',
-      fill: false,
-    });
-  }
-
-  return {
-    labels,
-    datasets
-  };
+  return generateTimeSeriesChartData(playerData, d => d.totalExp);
 }
 
 // Activities to exclude from the comparison table
@@ -1870,7 +1605,7 @@ async function generateActivitiesComparisonTable(comparisonData) {
   }
 
   let tableHtml = '<div class="sunken-panel" style="height: 400px; overflow: auto;">';
-  tableHtml += '<table class="interactive activities-comparison-table" style="width: 100%;">';
+  tableHtml += '<table class="interactive sticky-header activities-comparison-table" style="width: 100%;">';
 
   // Header
   tableHtml += '<thead><tr><th>Activity</th>';
@@ -1890,30 +1625,15 @@ async function generateActivitiesComparisonTable(comparisonData) {
       score: playerActivities[player]?.[activity] ?? 0
     }));
 
-    const sortedScores = [...activityScores].sort((a, b) => b.score - a.score);
-    const rankings = {};
-    let currentRank = 1;
-    for (let i = 0; i < sortedScores.length; i++) {
-      const { player, score } = sortedScores[i];
-      if (i > 0 && sortedScores[i - 1].score > score) {
-        currentRank = i + 1;
-      }
-      rankings[player] = currentRank;
-    }
+    const rankings = computeRankings(activityScores, 'score');
 
     for (const player of players) {
       const score = playerActivities[player]?.[activity] ?? 0;
-      let scoreClass = 'level-low'; // reuse level classes for now
+      let scoreClass = 'level-low';
       if (score >= 100) scoreClass = 'level-high';
       else if (score >= 10) scoreClass = 'level-medium';
 
-      let rankingClass = '';
-      if (score > 0) {
-        const rank = rankings[player];
-        if (rank === 1) rankingClass = ' rank-1st';
-        else if (rank === 2) rankingClass = ' rank-2nd';
-        else if (rank === 3) rankingClass = ' rank-3rd';
-      }
+      const rankingClass = getRankingClass(score, rankings[player]);
 
       tableHtml += `<td class="level-cell ${scoreClass}${rankingClass}" data-player="${player}" data-activity="${activity}" data-score="${score}">${score}</td>`;
     }
@@ -1921,7 +1641,7 @@ async function generateActivitiesComparisonTable(comparisonData) {
   }
 
   // Add total activities row
-  tableHtml += '<tr class="activities-total-row">';
+  tableHtml += '<tr class="sticky-total-row activities-total-row">';
   tableHtml += '<td style="font-weight: bold; font-size: 1.1em;">Total Activities</td>';
 
   // Calculate total activities for each player (sum of all activity scores)
@@ -1930,28 +1650,11 @@ async function generateActivitiesComparisonTable(comparisonData) {
     total: playerActivities[player] ? Object.values(playerActivities[player]).reduce((sum, score) => sum + (score || 0), 0) : 0
   }));
 
-  // Sort by total (highest first) and assign rankings
-  const sortedTotals = [...totalActivities].sort((a, b) => b.total - a.total);
-  const totalRankings = {};
-  let currentRank = 1;
-  for (let i = 0; i < sortedTotals.length; i++) {
-    const { player, total } = sortedTotals[i];
-    if (i > 0 && sortedTotals[i - 1].total > total) {
-      currentRank = i + 1;
-    }
-    totalRankings[player] = currentRank;
-  }
+  const totalRankings = computeRankings(totalActivities, 'total');
 
   for (const player of players) {
     const total = totalActivities.find(t => t.player === player)?.total ?? 0;
-
-    let rankingClass = '';
-    if (total > 0) {
-      const rank = totalRankings[player];
-      if (rank === 1) rankingClass = ' rank-1st';
-      else if (rank === 2) rankingClass = ' rank-2nd';
-      else if (rank === 3) rankingClass = ' rank-3rd';
-    }
+    const rankingClass = getRankingClass(total, totalRankings[player]);
 
     tableHtml += `<td class="level-cell ${rankingClass}" data-player="${player}" data-total="${total}" style="font-size: 1.1em; text-align: center;">${total}</td>`;
   }
@@ -2320,6 +2023,34 @@ async function generateStaticHTML() {
 
     // Chart colors for client-side use
     const CHART_COLORS = ${JSON.stringify(chartColors)};
+
+    function computeRankings(items, valueKey) {
+      const sorted = [...items].sort((a, b) => b[valueKey] - a[valueKey]);
+      const rankings = {};
+      let currentRank = 1;
+      for (let i = 0; i < sorted.length; i++) {
+        if (i > 0 && sorted[i - 1][valueKey] > sorted[i][valueKey]) {
+          currentRank = i + 1;
+        }
+        rankings[sorted[i].player] = currentRank;
+      }
+      return rankings;
+    }
+
+    function applyRankingClasses(allCells, selectedItems, valueKey) {
+      const rankings = computeRankings(selectedItems, valueKey);
+      allCells.forEach(cell => {
+        cell.classList.remove('rank-1st', 'rank-2nd', 'rank-3rd');
+      });
+      selectedItems.forEach(item => {
+        if (item[valueKey] > 0) {
+          const rank = rankings[item.player];
+          if (rank === 1) item.cell.classList.add('rank-1st');
+          else if (rank === 2) item.cell.classList.add('rank-2nd');
+          else if (rank === 3) item.cell.classList.add('rank-3rd');
+        }
+      });
+    }
 
     // Player filtering functions
     function getSelectedPlayers() {
@@ -2746,25 +2477,19 @@ async function generateStaticHTML() {
       updateSkillLevelChart(selectedPlayers);
     }
 
-    // JavaScript version of generateSkillLevelChartData for client-side updates
-    function generateSkillLevelChartDataJS(playerData, selectedSkill) {
+    function generateTimeSeriesChartDataJS(playerData, valueExtractor) {
       const datasets = [];
       const allTimestamps = new Set();
       const colors = CHART_COLORS;
       let colorIndex = 0;
 
-      const displayNames = playerToDisplay;
-
-      // First collect all timestamps
       for (const player in playerData) {
         const data = playerData[player];
         data.forEach(d => allTimestamps.add(new Date(d.timestamp).getTime()));
       }
 
-      // Sort timestamps numerically
       const sortedTimestamps = [...allTimestamps].sort((a, b) => a - b);
 
-      // Format timestamps after sorting
       const labels = sortedTimestamps.map(timestamp => {
         return new Date(timestamp).toLocaleString('en-US', {
           year: 'numeric',
@@ -2782,7 +2507,6 @@ async function generateStaticHTML() {
         const color = colors[colorIndex % colors.length];
         colorIndex++;
 
-        // Format data using the same timestamp formatting
         const formattedData = data.map(d => ({
           x: new Date(d.timestamp).toLocaleString('en-US', {
             year: 'numeric',
@@ -2793,11 +2517,11 @@ async function generateStaticHTML() {
             hour12: false,
             timeZone: 'Europe/Vilnius'
           }),
-          y: d.skillLevels[selectedSkill] || 1
+          y: valueExtractor(d)
         }));
 
         datasets.push({
-          label: displayNames[player] || player,
+          label: playerToDisplay[player] || player,
           data: formattedData,
           borderColor: color,
           backgroundColor: color + '33',
@@ -2805,10 +2529,11 @@ async function generateStaticHTML() {
         });
       }
 
-      return {
-        labels,
-        datasets
-      };
+      return { labels, datasets };
+    }
+
+    function generateSkillLevelChartDataJS(playerData, selectedSkill) {
+      return generateTimeSeriesChartDataJS(playerData, d => d.skillLevels[selectedSkill] || 1);
     }
 
     function updateQuestTable(selectedPlayers) {
@@ -2906,33 +2631,7 @@ async function generateStaticHTML() {
           });
         }
 
-        // Sort by level (highest first) and assign rankings
-        const sortedLevels = [...selectedLevels].sort((a, b) => b.level - a.level);
-        const rankings = {};
-        let currentRank = 1;
-
-        for (let i = 0; i < sortedLevels.length; i++) {
-          const { player, level } = sortedLevels[i];
-          if (i > 0 && sortedLevels[i - 1].level > level) {
-            currentRank = i + 1;
-          }
-          rankings[player] = currentRank;
-        }
-
-        // Clear all ranking classes first
-        levelCells.forEach(cell => {
-          cell.classList.remove('rank-1st', 'rank-2nd', 'rank-3rd');
-        });
-
-        // Apply ranking classes to selected players only
-        selectedLevels.forEach(({ cell, player, level }) => {
-          if (level > 0) {
-            const rank = rankings[player];
-            if (rank === 1) cell.classList.add('rank-1st');
-            else if (rank === 2) cell.classList.add('rank-2nd');
-            else if (rank === 3) cell.classList.add('rank-3rd');
-          }
-        });
+        applyRankingClasses(levelCells, selectedLevels, 'level');
       });
     }
 
@@ -3010,33 +2709,7 @@ async function generateStaticHTML() {
         }
       });
 
-      // Sort by total (highest first) and assign rankings
-      const sortedTotals = [...selectedTotals].sort((a, b) => b.total - a.total);
-      const rankings = {};
-      let currentRank = 1;
-
-      for (let i = 0; i < sortedTotals.length; i++) {
-        const { player, total } = sortedTotals[i];
-        if (i > 0 && sortedTotals[i - 1].total > total) {
-          currentRank = i + 1;
-        }
-        rankings[player] = currentRank;
-      }
-
-      // Clear all ranking classes first
-      totalCells.forEach(cell => {
-        cell.classList.remove('rank-1st', 'rank-2nd', 'rank-3rd');
-      });
-
-      // Apply ranking classes to selected players only
-      selectedTotals.forEach(({ cell, player, total }) => {
-        if (total > 0) {
-          const rank = rankings[player];
-          if (rank === 1) cell.classList.add('rank-1st');
-          else if (rank === 2) cell.classList.add('rank-2nd');
-          else if (rank === 3) cell.classList.add('rank-3rd');
-        }
-      });
+      applyRankingClasses(totalCells, selectedTotals, 'total');
     }
 
     function updateCollectionLogTable(selectedPlayers) {
@@ -3205,33 +2878,7 @@ async function generateStaticHTML() {
         }
       });
 
-      // Sort by total (highest first) and assign rankings
-      const sortedTotals = [...selectedTotals].sort((a, b) => b.total - a.total);
-      const rankings = {};
-      let currentRank = 1;
-
-      for (let i = 0; i < sortedTotals.length; i++) {
-        const { player, total } = sortedTotals[i];
-        if (i > 0 && sortedTotals[i - 1].total > total) {
-          currentRank = i + 1;
-        }
-        rankings[player] = currentRank;
-      }
-
-      // Clear all ranking classes first
-      totalCells.forEach(cell => {
-        cell.classList.remove('rank-1st', 'rank-2nd', 'rank-3rd');
-      });
-
-      // Apply ranking classes to selected players only
-      selectedTotals.forEach(({ cell, player, total }) => {
-        if (total > 0) {
-          const rank = rankings[player];
-          if (rank === 1) cell.classList.add('rank-1st');
-          else if (rank === 2) cell.classList.add('rank-2nd');
-          else if (rank === 3) cell.classList.add('rank-3rd');
-        }
-      });
+      applyRankingClasses(totalCells, selectedTotals, 'total');
     }
 
     function updateCollectionLogRankings(table, selectedPlayers) {
@@ -3261,33 +2908,7 @@ async function generateStaticHTML() {
         }
       });
 
-      // Sort by total (highest first) and assign rankings
-      const sortedTotals = [...selectedTotals].sort((a, b) => b.total - a.total);
-      const rankings = {};
-      let currentRank = 1;
-
-      for (let i = 0; i < sortedTotals.length; i++) {
-        const { player, total } = sortedTotals[i];
-        if (i > 0 && sortedTotals[i - 1].total > total) {
-          currentRank = i + 1;
-        }
-        rankings[player] = currentRank;
-      }
-
-      // Clear all ranking classes first
-      totalCells.forEach(cell => {
-        cell.classList.remove('rank-1st', 'rank-2nd', 'rank-3rd');
-      });
-
-      // Apply ranking classes to selected players only
-      selectedTotals.forEach(({ cell, player, total }) => {
-        if (total > 0) {
-          const rank = rankings[player];
-          if (rank === 1) cell.classList.add('rank-1st');
-          else if (rank === 2) cell.classList.add('rank-2nd');
-          else if (rank === 3) cell.classList.add('rank-3rd');
-        }
-      });
+      applyRankingClasses(totalCells, selectedTotals, 'total');
     }
 
     function updateAchievementsTable(selectedPlayers) {
@@ -3361,30 +2982,7 @@ async function generateStaticHTML() {
           }
         });
 
-        const sortedScores = [...selectedScores].sort((a, b) => b.score - a.score);
-        const rankings = {};
-        let currentRank = 1;
-
-        for (let i = 0; i < sortedScores.length; i++) {
-          const { player, score } = sortedScores[i];
-          if (i > 0 && sortedScores[i - 1].score > score) {
-            currentRank = i + 1;
-          }
-          rankings[player] = currentRank;
-        }
-
-        scoreCells.forEach(cell => {
-          cell.classList.remove('rank-1st', 'rank-2nd', 'rank-3rd');
-        });
-
-        selectedScores.forEach(({ cell, player, score }) => {
-          if (score > 0) {
-            const rank = rankings[player];
-            if (rank === 1) cell.classList.add('rank-1st');
-            else if (rank === 2) cell.classList.add('rank-2nd');
-            else if (rank === 3) cell.classList.add('rank-3rd');
-          }
-        });
+        applyRankingClasses(scoreCells, selectedScores, 'score');
       });
     }
 

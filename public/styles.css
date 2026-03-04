@@ -167,8 +167,8 @@ tr.completed-by-one {
   font-size: 12px;
 }
 
-/* Table header sticky styles */
-.level-comparison-table thead th {
+/* Shared sticky header styles */
+.sticky-header thead th {
   position: sticky;
   top: 0;
   background-color: #c0c0c0;
@@ -176,32 +176,8 @@ tr.completed-by-one {
   border-bottom: 2px solid #808080;
 }
 
-.collection-log-table thead th {
-  position: sticky;
-  top: 0;
-  background-color: #c0c0c0;
-  z-index: 10;
-  border-bottom: 2px solid #808080;
-}
-
-.combat-achievements-table thead th {
-  position: sticky;
-  top: 0;
-  background-color: #c0c0c0;
-  z-index: 10;
-  border-bottom: 2px solid #808080;
-}
-
-.activities-comparison-table thead th {
-  position: sticky;
-  top: 0;
-  background-color: #c0c0c0;
-  z-index: 10;
-  border-bottom: 2px solid #808080;
-}
-
-/* Quest totals sticky */
-.quest-comparison-table .quest-total-row td {
+/* Shared sticky total row styles */
+.sticky-total-row td {
   position: sticky;
   bottom: 0;
   background: #f0f0f0;
@@ -223,16 +199,6 @@ tr.completed-by-one {
 
 .diary-not-started {
   background-color: #cccccc;
-}
-
-/* Achievement diaries totals sticky */
-.achievement-diaries-table .achievement-diaries-total-row td {
-  position: sticky;
-  bottom: 0;
-  background: #f0f0f0;
-  font-weight: bold;
-  border-top: 3px solid #000;
-  z-index: 5;
 }
 
 /* Music track styles */
@@ -383,15 +349,6 @@ tr.completed-by-one {
   background-color: #cccccc;
 }
 
-.collection-log-table .collection-log-total-row td {
-  position: sticky;
-  bottom: 0;
-  background: #f0f0f0;
-  font-weight: bold;
-  border-top: 3px solid #000;
-  z-index: 5;
-}
-
 /* Combat achievements styles */
 .combat-achievement-complete {
   background-color: #3a8e3a;
@@ -417,41 +374,3 @@ tr.completed-by-one {
   background-color: #cccccc;
 }
 
-.combat-achievements-total-row td {
-  position: sticky;
-  bottom: 0;
-  background: #f0f0f0;
-  font-weight: bold;
-  border-top: 3px solid #000;
-  z-index: 5;
-}
-
-/* Music tracks totals sticky */
-.music-tracks-table .music-tracks-total-row td {
-  position: sticky;
-  bottom: 0;
-  background: #f0f0f0;
-  font-weight: bold;
-  border-top: 3px solid #000;
-  z-index: 5;
-}
-
-/* Level totals sticky */
-.level-comparison-table .level-total-row td {
-  position: sticky;
-  bottom: 0;
-  background: #f0f0f0;
-  font-weight: bold;
-  border-top: 3px solid #000;
-  z-index: 5;
-}
-
-/* Activities comparison styles */
-.activities-comparison-table .activities-total-row td {
-  position: sticky;
-  bottom: 0;
-  background: #f0f0f0;
-  font-weight: bold;
-  border-top: 3px solid #000;
-  z-index: 5;
-}

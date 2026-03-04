@@ -39,20 +39,17 @@ async function getHighscoreData(player) {
   }
 }
 
-if (!existsSync("player_data")) {
-  mkdirSync("player_data");
-}
+mkdirSync("player_data", { recursive: true });
 
 const timeStamp = new Date().toISOString();
 
-for (const player of PLAYER_CONFIG.players) {
+await Promise.all(PLAYER_CONFIG.players.map(async (player) => {
   try {
-
-    if (!existsSync(`player_data/${player}`)) {
-      mkdirSync(`player_data/${player}`);
-    }
-    const data = await getPlayerData(player)
-    const highscoreData = await getHighscoreData(player);
+    mkdirSync(`player_data/${player}`, { recursive: true });
+    const [data, highscoreData] = await Promise.all([
+      getPlayerData(player),
+      getHighscoreData(player)
+    ]);
 
     if (highscoreData) {
       data.skills = highscoreData.skills;
@@ -64,5 +61,5 @@ for (const player of PLAYER_CONFIG.players) {
   } catch (error) {
     console.error(`Error getting player data for ${player}:`, error)
   }
-}
+}));
 
