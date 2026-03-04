@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import https from "node:https";
 import { PLAYER_CONFIG, CHART_COLORS } from "./config.js";
@@ -805,12 +805,11 @@ function reconstructChartData(chartData) {
 
 
 
-function generateTimeSeriesChartData(playerData, valueExtractor, getLabel) {
+function generateTimeSeriesChartData(playerData, valueExtractor) {
   const datasets = [];
   const allTimestamps = new Set();
   const colors = CHART_COLORS;
   let colorIndex = 0;
-  const labelFn = getLabel || (player => getDisplayName(player));
 
   for (const player in playerData) {
     const data = playerData[player];
@@ -850,7 +849,7 @@ function generateTimeSeriesChartData(playerData, valueExtractor, getLabel) {
     }));
 
     datasets.push({
-      label: labelFn(player),
+      label: getDisplayName(player),
       data: formattedData,
       borderColor: color,
       backgroundColor: color + '33',
@@ -922,6 +921,9 @@ function getAchievementsData(playerDataMap, cacheIndex, gameData) {
     // Process file pairs starting from the first new file
     // Cache previous data to avoid re-reading the same file
     let cachedPreviousData = null;
+    try {
+      cachedPreviousData = JSON.parse(readFileSync(path.join(playerDir, allFiles[startIndex - 1]), "utf-8"));
+    } catch { /* will be re-attempted in loop */ }
     for (let i = startIndex; i < allFiles.length; i++) {
       const currentFile = allFiles[i];
       const previousFile = allFiles[i - 1];
@@ -1666,9 +1668,7 @@ async function generateActivitiesComparisonTable(comparisonData) {
 }
 
 async function generateStaticHTML() {
-  if (!existsSync('public')) {
-    mkdirSync('public');
-  }
+  mkdirSync('public', { recursive: true });
 
   console.log('Generating static HTML...');
 

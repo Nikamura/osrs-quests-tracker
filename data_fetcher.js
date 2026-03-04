@@ -1,4 +1,4 @@
-import { writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 import { PLAYER_CONFIG } from "./config.js";
 
 async function getPlayerData(player) {
