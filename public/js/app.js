@@ -2,6 +2,7 @@
 let originalChartData = null;
 let originalTotalLevelChartData = null;
 let originalTotalExpChartData = null;
+let xpHistory = {};
 let originalSkillLevelProgressData = null;
 let originalSkillLevelChartData = null;
 let questChart = null;
@@ -56,6 +57,7 @@ async function loadAppData() {
   originalChartData = chartData.questChart;
   originalTotalLevelChartData = chartData.totalLevelChart;
   originalTotalExpChartData = chartData.totalExpChart;
+  xpHistory = chartData.xpHistory || {};
   originalSkillLevelProgressData = chartData.skillLevelProgress;
   originalSkillLevelChartData = chartData.skillLevelChart;
 
@@ -478,6 +480,7 @@ function updateTotalLevelChart(selectedPlayers) {
 }
 
 function updateTotalExpChart(selectedPlayers) {
+  renderXpTrends(selectedPlayers);
   updateChartInstance(totalExpChart, originalTotalExpChartData, selectedPlayers);
 }
 
@@ -2558,6 +2561,54 @@ async function boot() {
       message.textContent = 'Dashboard data could not be loaded. Please refresh after the next tracker update.';
     }
   }
+}
+
+// Use observed endpoints only: do not invent gains at a missing period boundary.
+function calculateXpTrend(history, days, now = Date.now()) {
+  const day = 86400000;
+  const points = history.map(p => ({ time: Date.parse(p.timestamp), xp: p.totalExp }))
+    .filter(p => Number.isFinite(p.time) && Number.isFinite(p.xp) && p.xp >= 0 && p.time <= now)
+    .sort((a, b) => a.time - b.time);
+  function period(start, end) {
+    const samples = points.filter(p => p.time >= start && p.time <= end);
+    if (samples.length < 2) return null;
+    const first = samples[0], last = samples[samples.length - 1];
+    const span = (last.time - first.time) / day;
+    if (span <= 0 || samples.some((p, i) => i > 0 && p.xp < samples[i - 1].xp)) return null;
+    return { gain: last.xp - first.xp, rate: (last.xp - first.xp) / span, span,
+      complete: span >= days - 2 && first.time - start <= day && end - last.time <= day };
+  }
+  const current = period(now - days * day, now);
+  const previous = period(now - days * 2 * day, now - days * day);
+  return { current, previous, latest: points.at(-1)?.time,
+    change: current?.complete && previous?.complete && previous.rate > 0
+      ? (current.rate / previous.rate - 1) * 100 : null };
+}
+
+function renderXpTrends(selectedPlayers) {
+  const target = document.getElementById('xp-trends');
+  if (!target) return;
+  const days = Number(document.getElementById('xp-trend-period')?.value) || 30;
+  const rows = selectedPlayers.map(player => ({ player, ...calculateXpTrend(xpHistory[player] || [], days) }))
+    .sort((a, b) => (b.current?.rate ?? -1) - (a.current?.rate ?? -1));
+  const number = value => Math.round(value).toLocaleString();
+  if (!rows.length || rows.every(row => !row.current)) {
+    target.innerHTML = `<p class="xp-trend-empty">${rows.length
+      ? 'Not enough history for this period. XP pace appears after at least two snapshots on different days.'
+      : 'Select players to compare their XP pace.'}</p>`;
+    return;
+  }
+  target.innerHTML = `<div class="sunken-panel xp-trend-scroll" tabindex="0" role="region" aria-label="Recent XP pace"><table class="interactive xp-trend-table" aria-label="XP pace over the last ${days} days">
+    <thead><tr><th scope="col">Player</th><th scope="col">XP gained</th><th scope="col">XP / day</th><th scope="col">Pace change</th><th scope="col">History</th></tr></thead>
+    <tbody>${rows.map(row => {
+      const c = row.current;
+      const change = row.change === null ? '—' : `${row.change > 0 ? '+' : ''}${Math.round(row.change)}%`;
+      const coverage = c ? `${c.span.toFixed(1)} days${c.complete ? '' : ' · partial'}` : 'Insufficient history';
+      const updated = row.latest ? ` · updated ${new Date(row.latest).toLocaleDateString()}` : '';
+      return `<tr><th scope="row">${escapeHtml(playerToDisplay[row.player] || row.player)}</th>
+        <td>${c ? number(c.gain) : '—'}</td><td>${c ? number(c.rate) : '—'}</td>
+        <td>${change}</td><td>${coverage}${updated}</td></tr>`;
+    }).join('')}</tbody></table></div>`;
 }
 
 if (document.readyState === 'loading') {

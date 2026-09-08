@@ -500,6 +500,7 @@ function generateAllChartData(playerDataMap, cacheIndex, gameData) {
     chartData,
     totalLevelChartData,
     totalExpChartData,
+    xpHistory: totalExpProgressData,
     skillLevelProgressData: {
       playerData: skillLevelProgressData,
       availableSkills: [...allSkills].sort()
@@ -1135,7 +1136,7 @@ export async function generateStaticHTML() {
     console.log('Generating chart data...');
     const startCharts = Date.now();
 
-    const { chartData, totalLevelChartData, totalExpChartData, skillLevelProgressData } =
+    const { chartData, totalLevelChartData, totalExpChartData, xpHistory, skillLevelProgressData } =
       generateAllChartData(playerDataMap, cacheIndex, gameData);
 
     const defaultSkill = skillLevelProgressData.availableSkills[0] || 'Attack';
@@ -1184,6 +1185,7 @@ export async function generateStaticHTML() {
       questChart: chartData,
       totalLevelChart: totalLevelChartData,
       totalExpChart: totalExpChartData,
+      xpHistory,
       skillLevelProgress: skillLevelProgressData,
       skillLevelChart: skillLevelChartData
     }));
@@ -1354,6 +1356,19 @@ export async function generateStaticHTML() {
         <div class="chart-frame">
           <canvas id="totalExpChart"></canvas>
         </div>
+        <fieldset class="xp-trend-section">
+          <legend>Recent XP pace</legend>
+          <div class="xp-trend-toolbar">
+          <label for="xp-trend-period">Period:</label>
+          <select id="xp-trend-period" onchange="renderXpTrends(getSelectedPlayers())">
+            <option value="7">Last 7 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
+          </div>
+          <div id="xp-trends" aria-live="polite"></div>
+          <p class="xp-trend-note">Daily averages include offline time. Pace change compares with the previous period.</p>
+        </fieldset>
       </div>
     </div>
     <div class="window main-window" data-window-id="skill-level-progress">

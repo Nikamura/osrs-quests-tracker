@@ -1209,3 +1209,13 @@ summary:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+
+.xp-trend-section { margin: 16px 0 0; min-width: 0; }
+.xp-trend-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.xp-trend-scroll { overflow-x: auto; }
+.xp-trend-table { width: 100%; font-variant-numeric: tabular-nums; }
+.xp-trend-table th, .xp-trend-table td { padding: 4px 8px; text-align: right; white-space: nowrap; }
+.xp-trend-table th:first-child, .xp-trend-table th:last-child, .xp-trend-table td:last-child { text-align: left; }
+.xp-trend-table tbody th { font-weight: normal; }
+.xp-trend-note { margin: 8px 0 0; font-size: 11px; line-height: 1.5; color: #444; }
+.xp-trend-empty { margin: 4px 0; line-height: 1.5; }
