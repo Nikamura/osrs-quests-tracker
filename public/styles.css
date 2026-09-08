@@ -1,1221 +1,272 @@
-/* Loading screen styles */
-.loading-screen {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: #008080;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 9999;
-  font-family: 'MS Sans Serif', sans-serif;
+/* OSRS Wiki-inspired article theme. Palette reference:
+   https://oldschool.runescape.wiki/w/RuneScape:Theme
+   Layout and component rules are specific to this tracker. */
+:root {
+  --body-main: #e2dbc8;
+  --body-light: #d8ccb4;
+  --body-mid: #d0bd97;
+  --body-dark: #b8a282;
+  --body-border: #94866d;
+  --body-background-color: #c0a886;
+  --button-background: #605443;
+  --button-border: #3c352a;
+  --sidebar: #cfc08d;
+  --link-color: #79502e;
+  --text-color: #29251f;
+  --muted: #605747;
+  --paper: #efe9da;
+  --success: #cee0bd;
+  --partial: #ead9a0;
+}
+* { box-sizing: border-box; }
+html { background: var(--body-background-color); scroll-padding-top: 16px; }
+body { margin: 0; min-width: 0; color: var(--text-color); font: 14px/1.55 Arial, Helvetica, sans-serif; }
+a { color: var(--link-color); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button, input, select { font: inherit; }
+button, select, input[type="search"] { border: 1px solid var(--body-border); border-radius: 2px; min-height: 34px; padding: 5px 10px; }
+button { background: var(--body-light); color: var(--text-color); cursor: pointer; }
+button:hover { background: var(--body-mid); border-color: var(--button-background); }
+button:active { background: var(--body-dark); }
+select, input[type="search"] { color: var(--text-color); background: var(--paper); max-width: 100%; }
+input[type="checkbox"] { accent-color: var(--button-background); width: 16px; height: 16px; flex-shrink: 0; }
+:where(button, input, select, a, summary, [tabindex]):focus-visible { outline: 2px solid #276a83; outline-offset: 3px; }
+h1, h2, h3 { color: #332b20; }
+h1, h2 { font-family: Georgia, 'Times New Roman', serif; font-weight: normal; }
+h3 { font-size: 15px; margin: 12px 0 8px; }
+p { margin: 8px 0 12px; }
+.wiki-shell { max-width: 1600px; margin: 0 auto; display: grid; grid-template-columns: 196px minmax(0, 1fr); gap: 24px; padding: 24px; }
+.wiki-sidebar { align-self: start; position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto; padding: 0 4px; }
+.wiki-brand { display: block; font: 24px/1.2 Georgia, serif; color: #3c352a; padding: 12px 0 24px; }
+.wiki-brand > span { display: block; font-size: 48px; margin-bottom: 12px; }
+.wiki-brand small { display: block; margin-top: 8px; font: 11px Arial, sans-serif; letter-spacing: .06em; text-transform: uppercase; }
+.wiki-sidebar nav { display: grid; }
+.wiki-sidebar nav strong { margin: 18px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--body-border); font-size: 12px; }
+.wiki-sidebar nav a { padding: 4px 8px; font-size: 13px; border-left: 2px solid transparent; }
+.wiki-sidebar nav a:hover, .wiki-sidebar a[aria-current] { background: var(--body-light); border-left-color: var(--button-background); }
+.wiki-reference { display: block; margin-top: 24px; font-size: 12px; }
+.wiki-article { min-width: 0; background: var(--body-main); border: 1px solid var(--body-border); padding: 28px 32px; }
+.site-intro { border-bottom: 1px solid var(--body-border); padding-bottom: 14px; }
+.site-intro-icon { display: none; }
+.site-intro h1 { font-size: clamp(28px, 3vw, 38px); line-height: 1.2; margin: 0 0 8px; }
+.site-intro p { margin: 0; color: var(--muted); }
+.generated-at { color: var(--muted); font-size: 11px; margin: 10px 0 24px; }
+.container { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 24px; width: 100%; align-items: start; }
+.main-window { width: 100%; max-width: none; min-width: 0; margin: 0; grid-column: 1 / -1; scroll-margin-top: 16px; }
+[data-window-id="quest-progress"], [data-window-id="total-level-progress"] { grid-column: auto; }
+[data-window-id="total-exp-progress"] { grid-column: 1 / -1; }
+.title-bar { display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--body-border); margin-bottom: 14px; padding-bottom: 5px; }
+.title-bar-text { font-size: 23px; line-height: 1.3; margin: 0; flex: 1; min-width: 0; }
+.title-bar-controls { flex: 0 0 auto; }
+.title-bar-controls button { min-width: 44px; min-height: 34px; padding: 2px 6px; color: var(--link-color); font-size: 11px; background: transparent; border: 0; }
+.window-body { min-width: 0; }
+.window.minimized .window-body, .window.hidden, .search-hidden { display: none !important; }
+.configuration-window { padding: 14px 18px; background: var(--body-light); border: 1px solid var(--body-border); }
+.configuration-window .title-bar-text { font-family: Arial, sans-serif; font-size: 15px; font-weight: bold; }
+.player-options, .window-options { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.player-option, .window-option { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.player-label, .window-label { display: flex; align-items: center; cursor: pointer; }
+.player-label { min-height: 34px; }
+.player-label.unselected, .window-label.unselected { color: var(--muted); }
+.player-actions, .window-actions, .chart-toolbar, .xp-trend-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.time-period-control { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.section-preferences { border-top: 1px solid var(--body-border); padding-top: 10px; margin-top: 14px; font-size: 12px; }
+summary { cursor: pointer; }
+.section-preferences > summary { color: var(--link-color); }
+.window-options { padding: 8px 0; }
+.chart-frame { position: relative; width: 100%; height: 300px; }
+[data-window-id="total-exp-progress"] .chart-frame { height: 350px; }
+.chart-toolbar { justify-content: flex-end; margin: 0 0 8px; }
+.skill-control { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.chart-frame canvas { max-width: 100%; }
+.table-search { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin: 0 0 10px; font-size: 12px; color: var(--muted); }
+.table-search label { display: flex; align-items: center; gap: 8px; }
+.sunken-panel { overflow: auto !important; max-width: 100%; max-height: 480px; border: 1px solid var(--body-border); background: var(--paper); overscroll-behavior-x: contain; overscroll-behavior-y: auto; }
+table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 12px; font-variant-numeric: tabular-nums; }
+th, td { border-right: 1px solid #b9ac90; border-bottom: 1px solid #b9ac90; padding: 7px 9px; vertical-align: middle; }
+th:last-child, td:last-child { border-right: 0; }
+thead th { background: var(--body-mid); font-weight: bold; text-align: center; }
+thead th:first-child { text-align: left; }
+tbody tr { background: var(--paper); --mobile-sticky-background: var(--paper); }
+tbody tr:where(:nth-child(even)) { background: var(--body-main); --mobile-sticky-background: var(--body-main); }
+table.interactive tbody tr:hover { filter: brightness(.96); }
+td a { color: var(--link-color); }
+.sticky-header thead th { position: sticky; top: 0; z-index: 3; }
+.sticky-total-row td { position: sticky; bottom: 0; z-index: 2; font-weight: bold; background: var(--body-mid); border-top: 2px solid var(--body-border); }
+.level-cell { text-align: center; }
+.level-high { color: #315d2b; }
+.level-medium { color: #845118; }
+.level-low { color: #963e32; }
+.status-completed, .diary-complete, .music-track-unlocked, .collection-complete, .collection-has-item, .combat-achievement-complete, .combat-achievement-completed { background: var(--success); --mobile-sticky-background: var(--success); color: #254724; }
+.status-in-progress, .diary-partial, .collection-partial { background: var(--partial); --mobile-sticky-background: var(--partial); color: #654713; }
+.diary-not-started, .music-track-locked, .collection-missing-item, .combat-achievement-not-completed { background: #ded4be; --mobile-sticky-background: #ded4be; color: #625a4b; }
+.music-track-unknown { background: var(--paper); color: var(--muted); }
+tr.all-completed { background: var(--success); --mobile-sticky-background: var(--success); }
+tr.not-started-by-any { background: #ded4be; --mobile-sticky-background: #ded4be; }
+tr.completed-by-one { background: #d5e0de; --mobile-sticky-background: #d5e0de; }
+.rank-1st { background: #dfcb8d !important; color: #403415; font-weight: bold; }
+.rank-2nd { background: #d3d4ce !important; color: #393b36; font-weight: bold; }
+.rank-3rd { background: #dbc3a5 !important; color: #55402a; font-weight: bold; }
+.sailing-player-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.sailing-player-card { padding: 12px; background: var(--paper); border: 1px solid var(--body-border); border-top: 3px solid var(--player-accent, var(--button-background)); min-width: 0; }
+.sailing-player-heading, .sailing-chart-group-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.xp-trend-toolbar { margin: 0 0 10px; }
+.xp-trend-table { font-variant-numeric: tabular-nums; }
+.xp-trend-table td, .xp-trend-table th { text-align: right; white-space: nowrap; }
+.xp-trend-table th:first-child, .xp-trend-table th:last-child, .xp-trend-table td:last-child { text-align: left; }
+.xp-trend-note { font-size: 11px; color: var(--muted); margin: 8px 0 0; }
+.xp-trend-empty { margin: 4px 0; }
+.sailing-intro { display: flex; align-items: center; gap: 12px; background: var(--body-light); border: 1px solid var(--body-border); padding: 12px; }
+.sailing-player-grid { margin: 12px 0; }
+.sailing-player-total { font-weight: bold; margin: 8px 0; }
+.sailing-progress-track { height: 12px; border: 1px solid var(--body-border); background: var(--body-main); overflow: hidden; }
+.sailing-progress-track > span { display: block; height: 100%; background: #637b48; }
+.sailing-data-note { padding: 10px; background: var(--partial); border: 1px solid var(--body-border); }
+.sailing-metadata-warning { color: #8a481f; display: block; }
+.sailing-explorer-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.sailing-explorer-controls label { display: grid; gap: 4px; min-width: 0; }
+.sailing-explorer-controls select { width: 100%; }
+.sailing-chart-group { border: 1px solid var(--body-border); background: var(--body-light); margin: 12px 0; padding: 10px; }
+.sailing-chart-group-title { flex: 1; font-weight: bold; }
+.sailing-chart-group > summary { min-height: 36px; }
+.sailing-sea-group { margin-top: 10px; border: 1px solid var(--body-border); background: var(--paper); }
+.sailing-sea-group > summary { background: var(--body-mid); padding: 8px; min-height: 36px; }
+.sailing-sea-body { padding: 10px; }
+.sailing-task-list { list-style: none; padding: 0; }
+.sailing-task { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 8px; padding: 8px 0; border-top: 1px solid var(--body-border); }
+.sailing-task-state { font-weight: bold; }
+.sailing-task-copy { display: block; color: var(--muted); }
+.sailing-task.is-complete .sailing-task-state { color: #315d2b; }
+.site-attribution { border-top: 1px solid var(--body-border); padding-top: 16px; margin-top: 32px; font-size: 11px; color: var(--muted); }
+.skip-link { position: fixed; top: -100px; left: 16px; padding: 12px; z-index: 10000; background: var(--paper); }
+.skip-link:focus { top: 10px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.loading-screen { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: var(--body-main); padding-right: max(20px, env(safe-area-inset-right)); }
+.loading-content { text-align: center; color: var(--text-color); }
+.loading-text { font: 26px Georgia, serif; }
+.loading-subtext { color: var(--muted); margin-top: 8px; }
+.loading-spinner { width: 28px; height: 28px; margin: 0 auto 16px; border: 2px solid var(--body-dark); border-top-color: var(--button-background); border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+body.loading .wiki-shell { visibility: hidden; }
+@media (max-width: 1100px) {
+  .wiki-shell { grid-template-columns: 166px minmax(0, 1fr); gap: 16px; padding: 16px; }
+  .wiki-article { padding: 24px; }
+  .container { grid-template-columns: minmax(0, 1fr); }
 }
-
-.loading-content {
-  text-align: center;
-  color: white;
-}
-
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(255, 255, 255, 0.3);
-  border-top: 4px solid white;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 20px;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.loading-text {
-  font-size: 16px;
-  font-weight: bold;
-  margin-bottom: 10px;
-}
-
-.loading-subtext {
-  font-size: 12px;
-  opacity: 0.8;
-}
-
-/* Hide main content during loading */
-body.loading .container {
-  visibility: hidden;
-}
-
-body.loading .generated-at {
-  visibility: hidden;
-}
-
-/* Quest comparison table styles */
-tbody tr {
-  --mobile-sticky-background: #ffffff;
-}
-
-tbody :where(tr:not(.all-completed):not(.not-started-by-any):not(.completed-by-one):nth-child(even)) {
-  background-color: #ececec;
-  --mobile-sticky-background: #ececec;
-}
-
-.status-in-progress {
-  background-color: yellow;
-}
-
-.status-completed {
-  background-color: lime;
-}
-
-tr.all-completed {
-  background-color: #3a8e3a;
-  --mobile-sticky-background: #3a8e3a;
-  color: white;
-  font-weight: bold;
-}
-
-table.interactive tbody tr.all-completed:hover {
-  background-color: #2a7e2a !important;
-}
-
-tr.all-completed td {
-  background-color: inherit !important;
-}
-
-tr.not-started-by-any {
-  background-color: #cccccc;
-  --mobile-sticky-background: #cccccc;
-}
-
-tr.completed-by-one {
-  background-color: #a6d8f0;
-  --mobile-sticky-background: #a6d8f0;
-}
-
-/* Layout styles */
-html {
-  background: #008080;
-}
-
-body {
-  min-width: 0;
-}
-
-.container {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  width: 100%;
-}
-
-.site-intro {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
-  padding: 10px;
-  background: #ffffff;
-  box-shadow: inset -1px -1px #ffffff, inset 1px 1px #808080, inset -2px -2px #dfdfdf, inset 2px 2px #0a0a0a;
-}
-
-.site-intro-icon {
-  flex: 0 0 auto;
-  image-rendering: pixelated;
-}
-
-.site-intro-copy {
-  min-width: 0;
-}
-
-.site-intro h1 {
-  margin: 0 0 4px;
-  font-size: 18px;
-  line-height: 1.1;
-}
-
-.site-intro p {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.site-attribution {
-  margin: 0 0 18px;
-  color: #303030;
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-.site-attribution a {
-  color: #000080;
-  font-weight: bold;
-  white-space: nowrap;
-}
-
-.main-window {
-  margin: 32px;
-  width: 800px;
-  max-width: calc(100vw - 80px);
-}
-
-.player-selection {
-  margin-bottom: 20px;
-}
-
-.window-visibility {
-  margin-bottom: 15px;
-}
-
-.player-options,
-.window-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 15px;
-  margin-bottom: 10px;
-}
-
-.player-option,
-.window-option {
-  display: flex;
-  min-width: 0;
-}
-
-.player-label,
-.window-label,
-.time-period-control {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.player-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.time-period-control {
-  margin-left: 10px;
-}
-
-.window-actions {
-  margin-top: 10px;
-}
-
-.chart-frame {
-  position: relative;
-  width: 100%;
-  max-width: 800px;
-  height: 360px;
-  max-height: 600px;
-}
-
-.chart-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.skill-control {
-  margin-bottom: 15px;
-}
-
-/* Level comparison styles */
-.level-cell {
-  text-align: center;
-  font-weight: bold;
-}
-
-.level-high {
-  color: #006600;
-}
-
-.level-medium {
-  color: #cc6600;
-}
-
-.level-low {
-  color: #cc0000;
-}
-
-/* Ranking styles */
-.rank-1st {
-  background: linear-gradient(135deg, #ffd700, #ffed4e) !important;
-  border: 2px solid #b8860b !important;
-  color: #000 !important;
-  font-weight: bold !important;
-  position: relative;
-}
-
-.rank-1st::before {
-  content: "🥇";
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  font-size: 12px;
-}
-
-.rank-2nd {
-  background: linear-gradient(135deg, #c0c0c0, #e8e8e8) !important;
-  border: 2px solid #a0a0a0 !important;
-  color: #000 !important;
-  font-weight: bold !important;
-  position: relative;
-}
-
-.rank-2nd::before {
-  content: "🥈";
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  font-size: 12px;
-}
-
-.rank-3rd {
-  background: linear-gradient(135deg, #cd7f32, #d4a574) !important;
-  border: 2px solid #8b5a2b !important;
-  color: #000 !important;
-  font-weight: bold !important;
-  position: relative;
-}
-
-.rank-3rd::before {
-  content: "🥉";
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  font-size: 12px;
-}
-
-/* Shared sticky header styles */
-.sticky-header thead th {
-  position: sticky;
-  top: 0;
-  background-color: #c0c0c0;
-  z-index: 10;
-  border-bottom: 2px solid #808080;
-}
-
-/* Shared sticky total row styles */
-.sticky-total-row td {
-  position: sticky;
-  bottom: 0;
-  background: #f0f0f0;
-  font-weight: bold;
-  border-top: 3px solid #000;
-  z-index: 5;
-}
-
-.sticky-total-row {
-  --mobile-sticky-background: #f0f0f0;
-}
-
-/* Achievement diary styles */
-.diary-complete {
-  background-color: #3a8e3a;
-  --mobile-sticky-background: #3a8e3a;
-  color: white;
-  font-weight: bold;
-}
-
-.diary-partial {
-  background-color: #ffcc00;
-  --mobile-sticky-background: #ffcc00;
-}
-
-.diary-not-started {
-  background-color: #cccccc;
-  --mobile-sticky-background: #cccccc;
-}
-
-/* Music track styles */
-.music-track-unlocked {
-  background-color: #3a8e3a;
-  --mobile-sticky-background: #3a8e3a;
-  color: white;
-  font-weight: bold;
-}
-
-.music-track-locked {
-  background-color: #cccccc;
-  --mobile-sticky-background: #cccccc;
-}
-
-.music-track-unknown {
-  background-color: #eeeeee;
-  --mobile-sticky-background: #eeeeee;
-  color: #555555;
-  font-weight: bold;
-}
-
-/* Achievement styles */
-.achievement-new {
-  background-color: #ffcc00;
-  font-weight: bold;
-}
-
-.achievement-quest {
-  background-color: #4bc0c0;
-}
-
-.achievement-level {
-  background-color: #ff9f40;
-}
-
-.achievement-diary {
-  background-color: #9966ff;
-}
-
-.achievement-music {
-  background-color: #36a2eb;
-}
-
-.achievement-combat {
-  background-color: #ff6384;
-}
-
-.achievement-collection {
-  background-color: #9966ff;
-}
-
-.achievement-collection_item {
-  background-color: #c9cbcf;
-}
-
-.achievement-league {
-  background-color: #ff9f40;
-}
-
-.achievement-activity {
-  background-color: #b7d5d4;
-}
-
-/* Window management styles */
-.window.minimized .window-body {
-  display: none;
-}
-
-.window.minimized {
-  margin-bottom: 10px;
-}
-
-.window.dragging {
-  opacity: 0.5;
-  z-index: 1000;
-}
-
-.window {
-  transition: transform 0.2s ease;
-}
-
-.title-bar {
-  cursor: grab;
-}
-
-.title-bar:active {
-  cursor: grabbing;
-}
-
-.container.drag-over {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-.drop-indicator {
-  position: absolute;
-  background-color: #00ff00;
-  height: 4px;
-  width: 100%;
-  border-radius: 2px;
-  z-index: 999;
-  display: none;
-}
-
-/* Generated timestamp styles */
-.generated-at {
-  position: fixed;
-  bottom: 10px;
-  right: 10px;
-  background: rgba(0, 0, 0, 0.7);
-  color: white;
-  padding: 5px 10px;
-  border-radius: 5px;
-  font-size: 12px;
-  z-index: 1000;
-}
-
-/* Player selection styles */
-.player-label.unselected .player-name {
-  text-decoration: line-through;
-  color: #888;
-  opacity: 0.6;
-}
-
-.player-label {
-  transition: all 0.2s ease;
-}
-
-.window-label.unselected .window-name {
-  text-decoration: line-through;
-  color: #888;
-  opacity: 0.6;
-}
-
-.window.hidden {
-  display: none !important;
-}
-
-button:focus-visible,
-select:focus-visible,
-input:focus-visible,
-a:focus-visible,
-summary:focus-visible {
-  outline: 2px solid #000080;
-  outline-offset: 2px;
-}
-
-.player-option input:focus-visible + .player-label,
-.window-option input:focus-visible + .window-label {
-  outline: 2px solid #000080;
-  outline-offset: 2px;
-}
-
-/* Keep the 98.css minimize glyph when the accessible action changes to Restore. */
-.title-bar-controls button[aria-controls] {
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg width='6' height='2' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%23000' d='M0 0h6v2H0z'/%3E%3C/svg%3E") !important;
-  background-position: 4px calc(100% - 3px) !important;
-  background-repeat: no-repeat !important;
-}
-
-/* Collection log styles */
-.collection-complete {
-  background-color: #3a8e3a;
-  --mobile-sticky-background: #3a8e3a;
-  color: white;
-  font-weight: bold;
-}
-
-.collection-partial {
-  background-color: #ffcc00;
-  --mobile-sticky-background: #ffcc00;
-}
-
-.collection-has-item {
-  background-color: #3a8e3a;
-  color: white;
-  font-weight: bold;
-}
-
-.collection-missing-item {
-  background-color: #cccccc;
-}
-
-/* Combat achievements styles */
-.combat-achievement-complete {
-  background-color: #3a8e3a;
-  --mobile-sticky-background: #3a8e3a;
-  color: white;
-  font-weight: bold;
-}
-
-.combat-achievement-partial {
-  background-color: inherit;
-}
-
-.combat-achievement-none {
-  background-color: inherit;
-}
-
-.combat-achievement-completed {
-  background-color: #3a8e3a;
-  color: white;
-  font-weight: bold;
-}
-
-.combat-achievement-not-completed {
-  background-color: #cccccc;
-}
-
-/* Compact, card-based summaries avoid another wide comparison table. */
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.empty-panel-message {
-  margin: 8px;
-}
-
-.overview-grid,
-.sailing-player-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 10px;
-}
-
-.overview-card,
-.sailing-player-card {
-  min-width: 0;
-  padding: 8px;
-  border-left: 6px solid var(--player-accent, #008080);
-  background: #c0c0c0;
-  box-shadow: inset -1px -1px #808080, inset 1px 1px #ffffff;
-}
-
-.overview-card-header,
-.sailing-player-heading,
-.sailing-chart-group-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.overview-card-header {
-  margin-bottom: 7px;
-  padding-bottom: 5px;
-  border-bottom: 1px solid #808080;
-}
-
-.overview-card-header span {
-  color: #444444;
-  font-size: 11px;
-  text-align: right;
-}
-
-.overview-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-}
-
-.overview-metric {
-  min-width: 0;
-  padding: 6px;
-  background: #ffffff;
-  box-shadow: inset -1px -1px #ffffff, inset 1px 1px #808080;
-}
-
-.overview-metric-label,
-.overview-metric-value {
-  display: block;
-  overflow-wrap: anywhere;
-}
-
-.overview-metric-label {
-  color: #555555;
-  font-size: 11px;
-}
-
-.sailing-intro {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  padding: 8px;
-  background: #000080;
-  color: #ffffff;
-}
-
-.sailing-intro a {
-  color: #ffffff;
-}
-
-.sailing-player-grid {
-  margin: 10px 0;
-}
-
-.sailing-player-total {
-  margin: 6px 0 4px;
-  font-weight: bold;
-}
-
-.sailing-progress-track {
-  box-sizing: border-box;
-  width: 100%;
-  height: 16px;
-  padding: 2px;
-  overflow: hidden;
-  background: #ffffff;
-  box-shadow: inset -1px -1px #ffffff, inset 1px 1px #808080;
-}
-
-.sailing-progress-track > span {
-  display: block;
-  height: 100%;
-  background-color: #008080;
-  background-image: repeating-linear-gradient(
-    90deg,
-    transparent 0,
-    transparent 8px,
-    rgba(255, 255, 255, 0.45) 8px,
-    rgba(255, 255, 255, 0.45) 9px
-  );
-}
-
-.sailing-metadata-warning {
-  display: block;
-  margin-top: 5px;
-  color: #7a3200;
-}
-
-.sailing-data-note {
-  margin: 10px 0;
-  padding: 7px;
-  border: 1px solid #808080;
-  background: #ffffe1;
-}
-
-.sailing-explorer-controls {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.sailing-explorer-controls label {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-  font-weight: bold;
-}
-
-.sailing-explorer-controls select {
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-}
-
-.sailing-explorer-results {
-  margin-top: 10px;
-}
-
-.sailing-chart-group {
-  margin: 10px 0;
-  padding: 8px;
-  background: #c0c0c0;
-  box-shadow: inset -1px -1px #808080, inset 1px 1px #ffffff;
-}
-
-.sailing-chart-group-title {
-  flex: 1;
-  font-size: 16px;
-}
-
-.sailing-chart-group-heading {
-  min-height: 36px;
-  cursor: pointer;
-  list-style: none;
-}
-
-.sailing-chart-group-heading::before {
-  content: "\25B6";
-  flex: 0 0 auto;
-  font-size: 10px;
-}
-
-.sailing-chart-group[open] > .sailing-chart-group-heading::before {
-  content: "\25BC";
-}
-
-.sailing-chart-group-body {
-  margin-top: 6px;
-}
-
-.sailing-sea-group {
-  margin-top: 8px;
-  background: #ffffff;
-  box-shadow: inset -1px -1px #ffffff, inset 1px 1px #808080;
-}
-
-.sailing-sea-group > summary {
-  display: flex;
-  box-sizing: border-box;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 36px;
-  padding: 4px 8px;
-  cursor: pointer;
-  background: #c0c0c0;
-  font-weight: bold;
-  list-style: none;
-}
-
-.sailing-chart-group-heading::-webkit-details-marker,
-.sailing-sea-group > summary::-webkit-details-marker {
-  display: none;
-}
-
-.sailing-sea-group > summary::before {
-  content: "\25B6";
-  flex: 0 0 auto;
-  font-size: 10px;
-}
-
-.sailing-sea-group[open] > summary::before {
-  content: "\25BC";
-}
-
-.sailing-sea-body {
-  min-width: 0;
-  padding: 8px;
-}
-
-.sailing-task-list {
-  margin: 8px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.sailing-task {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  gap: 6px;
-  padding: 7px 4px;
-  border-top: 1px solid #dfdfdf;
-}
-
-.sailing-task-state {
-  font-weight: bold;
-  text-align: center;
-}
-
-.sailing-task.is-complete .sailing-task-state {
-  color: #006600;
-}
-
-.sailing-task-copy {
-  display: block;
-  margin-top: 3px;
-  overflow-wrap: anywhere;
-}
-
-/* Handheld desktop: retain the Windows 98 language while making every window
-   behave like a native, edge-to-edge mobile card. */
 @media (max-width: 700px) {
-  html,
-  body {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: hidden;
-    overscroll-behavior-x: none;
-    -webkit-text-size-adjust: 100%;
-  }
-
-  body {
-    margin: 0;
-  }
-
-  .loading-screen {
-    box-sizing: border-box;
-    padding-right: max(20px, env(safe-area-inset-right));
-    padding-left: max(20px, env(safe-area-inset-left));
-  }
-
-  .generated-at {
-    position: static;
-    box-sizing: border-box;
-    margin: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
-    border: 1px solid #ffffff;
-    border-radius: 0;
-    box-shadow: inset -1px -1px #000000, inset 1px 1px #dfdfdf;
-    text-align: center;
-  }
-
-  .container {
-    display: block;
-    box-sizing: border-box;
-    padding: 8px max(8px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
-  }
-
-  .main-window {
-    box-sizing: border-box;
-    width: 100%;
-    max-width: none;
-    margin: 0 0 12px;
-  }
-
-  .site-intro {
-    gap: 10px;
-    padding: 8px;
-  }
-
-  .site-intro-icon {
-    width: 44px;
-    height: 44px;
-  }
-
-  .site-attribution a {
-    display: inline-flex;
-    align-items: center;
-    min-height: 44px;
-    padding: 0 4px;
-  }
-
-  .window {
-    transition: none;
-  }
-
-  .window-body {
-    min-width: 0;
-    overflow: hidden;
-  }
-
-  .title-bar {
-    min-height: 44px;
-    cursor: default !important;
-    touch-action: manipulation;
-  }
-
-  .title-bar-text {
-    min-width: 0;
-    overflow: hidden;
-    font-size: 13px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .title-bar-controls {
-    display: flex;
-    flex: 0 0 auto;
-    gap: 3px;
-  }
-
-  .title-bar-controls button {
-    min-width: 44px;
-    min-height: 44px;
-    touch-action: manipulation;
-  }
-
-  .title-bar-controls button[aria-controls] {
-    background-position: center !important;
-    background-size: 12px 4px !important;
-  }
-
-  .title-bar-controls button[aria-label="Close"] {
-    background-position: center !important;
-    background-size: 14px 13px !important;
-  }
-
-  .drop-indicator {
-    display: none !important;
-  }
-
-  .configuration-window h3 {
-    margin: 12px 0 8px;
-    font-size: 16px;
-  }
-
-  .configuration-window h3:first-child {
-    margin-top: 4px;
-  }
-
-  .player-options,
-  .window-options {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
-    margin-bottom: 12px;
-  }
-
-  .player-option,
-  .window-option {
-    box-sizing: border-box;
-    align-items: center;
-    min-width: 0;
-    min-height: 44px;
-    background: #c0c0c0;
-    box-shadow: inset -1px -1px #808080, inset 1px 1px #ffffff;
-    line-height: 1.25;
-    touch-action: manipulation;
-  }
-
-  .player-label,
-  .window-label {
-    box-sizing: border-box;
-    flex: 1;
-    width: 100%;
-    min-width: 0;
-    min-height: 44px;
-    margin-left: 0 !important;
-    padding: 7px 8px 7px 28px;
-    cursor: pointer;
-    touch-action: manipulation;
-  }
-
-  .player-option > input[type="checkbox"] + .player-label::before,
-  .window-option > input[type="checkbox"] + .window-label::before {
-    left: 8px;
-  }
-
-  .player-option > input[type="checkbox"]:checked + .player-label::after,
-  .window-option > input[type="checkbox"]:checked + .window-label::after {
-    left: 11px;
-  }
-
-  .player-name,
-  .window-name {
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-
-  .player-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    margin-top: 0;
-  }
-
-  .player-actions > button,
-  .window-actions > button {
-    width: 100%;
-    min-height: 44px;
-    touch-action: manipulation;
-  }
-
-  .time-period-control {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 8px;
-    min-height: 44px;
-    margin-left: 0;
-  }
-
-  .time-period-control select {
-    width: 100%;
-    min-height: 44px;
-    font-size: 16px;
-  }
-
-  .window-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    margin-top: 0;
-  }
-
-  .window-actions button + button {
-    margin-left: 0 !important;
-  }
-
-  .overview-grid,
-  .sailing-player-grid,
-  .sailing-explorer-controls {
-    grid-template-columns: 1fr;
-  }
-
-  .overview-card-header {
-    align-items: flex-start;
-  }
-
-  .sailing-intro {
-    grid-template-columns: 1fr;
-  }
-
-  .sailing-intro a {
-    display: flex;
-    align-items: center;
-    min-height: 44px;
-  }
-
-  .sailing-explorer-controls select,
-  .sailing-chart-group > summary,
-  .sailing-sea-group > summary {
-    min-height: 44px;
-    font-size: 16px;
-    touch-action: manipulation;
-  }
-
-  .sailing-sea-body > a {
-    display: flex;
-    align-items: center;
-    min-height: 44px;
-    touch-action: manipulation;
-  }
-
-  .sailing-task {
-    padding: 10px 4px;
-  }
-
-  .chart-toolbar button,
-  .skill-control select {
-    min-height: 44px;
-    touch-action: manipulation;
-  }
-
-  .skill-control {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
-  }
-
-  .skill-control select {
-    width: 100%;
-    margin-left: 0 !important;
-    padding: 5px;
-    font-size: 16px;
-  }
-
-  .chart-frame {
-    width: 100%;
-    height: 280px;
-    max-height: none;
-  }
-
-  .chart-frame canvas {
-    width: 100% !important;
-    height: 100% !important;
-  }
-
-  .sunken-panel {
-    width: 100%;
-    max-width: 100%;
-    height: min(62svh, 460px) !important;
-    min-height: 320px;
-    overflow: auto !important;
-    overscroll-behavior-x: contain;
-    overscroll-behavior-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  table.interactive {
-    width: max-content !important;
-    min-width: 100%;
-    font-size: 12px;
-  }
-
-  table.interactive th,
-  table.interactive td {
-    min-width: 68px;
-    height: 36px;
-    padding: 6px 8px;
-    white-space: nowrap;
-  }
-
-  .quest-comparison-table th:first-child,
+  .wiki-shell { display: block; padding: 0; }
+  .wiki-sidebar { position: static; max-height: none; padding: 12px 16px; background: var(--body-light); }
+  .wiki-brand { font-size: 21px; padding: 0 0 10px; }
+  .wiki-brand > span, .wiki-brand small, .wiki-reference, .wiki-sidebar nav strong { display: none; }
+  .wiki-sidebar nav { display: flex; overflow-x: auto; gap: 4px; }
+  .wiki-sidebar nav a { white-space: nowrap; display: flex; align-items: center; min-height: 44px; padding: 8px; }
+  .wiki-article { border-width: 1px 0 0; padding: 20px 12px; }
+  .main-window { width: 100%; max-width: none; }
+  .title-bar-text { font-size: 22px; }
+  .title-bar-controls button { min-width: 44px; min-height: 44px; }
+  .configuration-window { padding: 12px; }
+  .player-label, .window-label { min-height: 44px; }
+  button, select, input[type="search"], .sailing-explorer-controls select { min-height: 44px; }
+  .time-period-control { margin-left: 0; flex-wrap: wrap; width: 100%; }
+  .section-preferences > summary, .sailing-chart-group > summary, .sailing-sea-group > summary { min-height: 44px; }
+  .sailing-sea-body > a { display: inline-flex; align-items: center; min-height: 44px; }
+  .sailing-player-grid { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  .sailing-explorer-controls { grid-template-columns: 1fr; }
+  .table-search label { width: 100%; }
+  .table-search input { min-width: 0; width: 100%; }
+  .chart-frame, [data-window-id="total-exp-progress"] .chart-frame { height: 290px; }
+  .sunken-panel { max-height: 440px; }
+  table { font-size: 12px; }
   .quest-comparison-table td:first-child,
-  .level-comparison-table th:first-child,
   .level-comparison-table td:first-child,
-  .achievement-diaries-table th:first-child,
-  .achievement-diaries-table td:first-child:not([colspan]),
-  .music-tracks-table th:first-child,
   .music-tracks-table td:first-child,
-  .activities-comparison-table th:first-child,
   .activities-comparison-table td:first-child,
-  #achievements-table-container table th:first-child,
-  #achievements-table-container table td:first-child,
-  .collection-log-table th:nth-child(2),
+  .achievement-diaries-table td:first-child:not([colspan]),
   .collection-log-table td:nth-child(2),
-  .combat-achievements-table th:nth-child(3),
-  .combat-achievements-table td:nth-child(3) {
-    position: sticky;
-    left: 0;
-    z-index: 6;
-    max-width: 170px;
-    background-color: var(--mobile-sticky-background, #ffffff);
-    box-shadow: 2px 0 #808080;
-    white-space: normal;
+  .combat-achievements-table td:nth-child(3),
+  #achievements-table-container td:first-child,
+  .xp-trend-table tbody th:first-child {
+    position: sticky; left: 0; z-index: 1;
+    background: var(--mobile-sticky-background, var(--paper));
+    min-width: 100px; max-width: 160px;
   }
-
   .quest-comparison-table thead th:first-child,
   .level-comparison-table thead th:first-child,
-  .achievement-diaries-table thead th:first-child,
   .music-tracks-table thead th:first-child,
   .activities-comparison-table thead th:first-child,
-  #achievements-table-container table thead th:first-child,
+  .achievement-diaries-table thead th:first-child,
   .collection-log-table thead th:nth-child(2),
-  .combat-achievements-table thead th:nth-child(3) {
-    z-index: 12;
-    background-color: #c0c0c0;
+  .combat-achievements-table thead th:nth-child(3),
+  #achievements-table-container thead th:first-child,
+  .xp-trend-table thead th:first-child {
+    position: sticky; left: 0; z-index: 4; background: var(--body-mid);
   }
+  .sticky-total-row td:first-child { z-index: 2; background: var(--body-mid); }
 
-  .quest-comparison-table th:first-child,
-  .quest-comparison-table td:first-child,
-  .level-comparison-table th:first-child,
-  .level-comparison-table td:first-child,
-  .music-tracks-table th:first-child,
-  .music-tracks-table td:first-child,
-  .activities-comparison-table th:first-child,
-  .activities-comparison-table td:first-child {
-    min-width: 138px;
-  }
+}
+@media (prefers-reduced-motion: reduce) { .loading-spinner { animation: none; } }
 
-  .collection-log-table th:nth-child(2),
-  .collection-log-table td:nth-child(2) {
-    min-width: 150px;
-  }
+.status-completed, .status-in-progress, .status-not-started { text-align: center; }
 
-  .combat-achievements-table th:nth-child(3),
-  .combat-achievements-table td:nth-child(3) {
-    min-width: 180px;
-  }
-
-  .achievements-controls {
-    flex-direction: column;
-    align-items: stretch !important;
-  }
-
-  .achievements-controls button {
-    min-height: 44px;
-  }
+.achievement-summary-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 18px; margin-bottom: 12px; }
+.achievement-summary-heading strong { font-size: 17px; }
+.achievement-summary-heading span { color: var(--muted); font-size: 12px; }
+.achievement-breakdown { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.achievement-breakdown > section { background: var(--paper); border: 1px solid var(--body-border); padding: 12px 16px; }
+.achievement-breakdown h3 { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+.achievement-counts { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; }
+.achievement-counts > div { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid var(--body-light); }
+.achievement-counts dt { font-size: 12px; }
+.achievement-counts dd { margin: 0; font-size: 13px; font-weight: bold; font-variant-numeric: tabular-nums; }
+.achievements-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin: 16px 0 12px; }
+.achievements-controls span { color: var(--muted); font-size: 12px; }
+.achievements-controls button[aria-pressed="true"] { background: var(--button-background); color: var(--paper); }
+.achievement-feed { height: 440px; }
+.achievement-feed td:nth-child(2) { min-width: 220px; }
+.achievement-feed td:last-child { white-space: nowrap; }
+.achievement-description img { vertical-align: middle; margin-right: 6px; }
+button:disabled { opacity: .6; cursor: default; }
+@media (max-width: 700px) {
+  .achievement-breakdown { grid-template-columns: 1fr; gap: 10px; }
+  .achievement-counts { gap: 0 16px; }
 }
 
-@media (max-width: 360px) {
-  .window-options {
-    grid-template-columns: 1fr;
-  }
-
-  .chart-frame {
-    height: 250px;
-  }
+/* Real game interface sprites add character and help identify sections. */
+.osrs-icon { display: inline-block; flex: 0 0 auto; object-fit: contain; image-rendering: pixelated; vertical-align: middle; }
+.title-bar-text { display: flex; align-items: center; gap: 10px; }
+.title-bar-text > .osrs-icon { width: 26px; height: 26px; }
+.wiki-sidebar nav a { display: flex; align-items: center; gap: 8px; }
+.wiki-sidebar nav .osrs-icon { width: 18px; height: 18px; }
+.wiki-brand-icon { display: block; object-fit: contain; image-rendering: pixelated; margin-bottom: 12px; }
+.icon-label { display: inline-flex; align-items: center; gap: 7px; }
+.achievement-counts dt { display: flex; align-items: center; gap: 7px; }
+.achievement-counts .osrs-icon { width: 18px; height: 18px; }
+@media (max-width: 700px) {
+  .wiki-brand-icon { display: inline-block; width: 24px; height: 24px; margin: 0 8px 0 0; vertical-align: middle; }
 }
 
-@media (pointer: coarse) {
-  button,
-  label,
-  select,
-  a {
-    -webkit-tap-highlight-color: rgba(0, 0, 128, 0.18);
-  }
+.echart { width: 100%; height: 100%; min-width: 0; }
+.chart-help { font-size: 12px; color: var(--muted); margin: 8px 0 14px; }
+.chart-tooltip-heading { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; font-weight: bold; }
+.chart-tooltip-row { display: flex; justify-content: space-between; gap: 20px; }
+.chart-tooltip-detail { font-size: 11px; opacity: .8; margin: 2px 0 0 15px; }
 
-  .title-bar {
-    cursor: default;
-  }
-}
+.chart-tooltip-entry { border-left: 3px solid transparent; padding: 5px 7px; margin: 1px -5px; }
+.chart-tooltip-entry.is-highlighted { border-left-color: var(--series-color); background: #d8ccb4; outline: 1px solid #b8a888; }
+.chart-tooltip-row strong { display: flex; align-items: center; gap: 7px; }
+.chart-tooltip-swatch { width: 8px; height: 8px; background: var(--series-color); border-radius: 50%; flex-shrink: 0; }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
+.player-ign { font-weight: normal; font-size: .9em; opacity: .8; }
 
-.xp-trend-section { margin: 16px 0 0; min-width: 0; }
-.xp-trend-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.xp-trend-scroll { overflow-x: auto; }
-.xp-trend-table { width: 100%; font-variant-numeric: tabular-nums; }
-.xp-trend-table th, .xp-trend-table td { padding: 4px 8px; text-align: right; white-space: nowrap; }
-.xp-trend-table th:first-child, .xp-trend-table th:last-child, .xp-trend-table td:last-child { text-align: left; }
-.xp-trend-table tbody th { font-weight: normal; }
-.xp-trend-note { margin: 8px 0 0; font-size: 11px; line-height: 1.5; color: #444; }
-.xp-trend-empty { margin: 4px 0; line-height: 1.5; }
+.chart-player-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 8px; margin-top: 8px; }
+.chart-player-toggle { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; padding: 5px 3px; min-height: 32px; font-size: 12px; }
+.chart-player-toggle[aria-pressed="false"] { text-decoration: line-through; color: #766e60; }
+.chart-player-toggle[aria-pressed="false"] .chart-legend-swatch { opacity: .3; }
+.chart-player-toggle:hover, .chart-player-toggle:focus-visible { background: #d8ccb4; }
+.chart-legend-swatch { width: 14px; height: 4px; background: var(--series-color); }
+@media (max-width: 700px) { .chart-player-toggle { min-height: 44px; } }
+
+.player-identity { font-weight: 600; }
+.chart-player-toggle { color: var(--series-color); }
+.chart-player-toggle[aria-pressed="false"] { color: var(--series-color); opacity: .6; }
+.chart-tooltip-row strong { color: var(--series-color); }

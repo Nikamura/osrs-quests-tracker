@@ -197,17 +197,19 @@ test('fresh generation works and includes Sailing-era progress', async () => {
     assert.equal(structuredData['@type'], 'WebSite');
     assert.equal(structuredData.url, SITE_METADATA.canonicalUrl);
     assert.equal(structuredData.name, SITE_METADATA.name);
-    assert.equal(emptyDashboardDocument.body.dataset.windowCatalogVersion, '3');
-    for (const windowId of ['player-overview', 'sailing-progress', 'sea-charting-explorer']) {
+    assert.equal(emptyDashboardDocument.body.dataset.windowCatalogVersion, '4');
+    for (const windowId of ['sailing-progress', 'sea-charting-explorer']) {
       const checkbox = emptyDashboardDocument.querySelector(`#window-${windowId}`);
       const windowElement = emptyDashboardDocument.querySelector(`[data-window-id="${windowId}"]`);
       assert.ok(checkbox, `${windowId} visibility control should exist`);
       assert.equal(checkbox.dataset.introducedVersion, '2');
-      assert.equal(checkbox.checked, windowId === 'player-overview');
+      assert.equal(checkbox.checked, false);
       assert.ok(windowElement, `${windowId} window should exist`);
       assert.equal(windowElement.dataset.introducedVersion, '2');
     }
-    assert.ok(emptyDashboardDocument.querySelector('#player-overview-container'));
+    assert.equal(emptyDashboardDocument.querySelector('#player-overview-container'), null);
+    assert.ok(emptyDashboardDocument.querySelector('#xp-pace #xp-trends'));
+    assert.equal(emptyDashboardDocument.querySelector('#window-xp-pace').dataset.introducedVersion, '4');
     assert.ok(emptyDashboardDocument.querySelector('#sailing-progress-container'));
     assert.ok(emptyDashboardDocument.querySelector('#sea-charting-explorer-container'));
     const windowIds = [...emptyDashboardDocument.querySelectorAll('.window[data-window-id]')]

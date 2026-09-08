@@ -17,3 +17,6 @@ public/*
 !public/og/**
 game_data/
 cache/
+
+!public/vendor/
+!public/vendor/**

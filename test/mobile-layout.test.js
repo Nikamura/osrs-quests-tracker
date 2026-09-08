@@ -16,12 +16,14 @@ test('mobile layout keeps windows within the viewport and tables independently s
   assert.match(styles, /padding-right:\s*max\(20px, env\(safe-area-inset-right\)\)/);
 });
 
-test('mobile controls are touch-sized and window dragging is disabled on coarse pointers', () => {
+test('mobile controls are touch-sized and desktop dragging is removed', () => {
   assert.match(styles, /\.player-label,[\s\S]*?min-height:\s*44px/);
   assert.match(styles, /\.title-bar-controls button\s*{[^}]*min-width:\s*44px[^}]*min-height:\s*44px/s);
-  assert.match(app, /matchMedia\('\(min-width: 701px\) and \(pointer: fine\)'\)/);
-  assert.match(app, /maintainAspectRatio:\s*false/);
-  assert.match(styles, /\.sailing-explorer-controls select,[\s\S]*?min-height:\s*44px/);
+  assert.doesNotMatch(app, /titleBar\.draggable = true/);
+  assert.match(app, /initializeArticleNavigation\(\)/);
+  assert.match(app, /new ResizeObserver/);
+  assert.match(styles, /\.echart\s*{[^}]*height:\s*100%/);
+  assert.match(styles, /\.sailing-explorer-controls select\s*{[^}]*min-height:\s*44px/);
   assert.match(styles, /\.sailing-chart-group\s*>\s*summary,[\s\S]*?min-height:\s*44px/);
   assert.match(styles, /\.sailing-sea-group\s*>\s*summary[\s\S]*?min-height:\s*44px/);
   assert.match(styles, /\.sailing-sea-body\s*>\s*a\s*{[^}]*min-height:\s*44px/s);
@@ -32,25 +34,33 @@ test('mobile selection and scroll regions retain native control semantics', () =
   assert.match(generator, /<input type="checkbox"[^>]*id="window-\$\{window\.id\}"[^>]*>[\s\S]*?<label class="window-label" for="window-\$\{window\.id\}">/);
   assert.match(app, /role="region" aria-label="Quest comparison" tabindex="0"/);
   assert.match(app, /setAttribute\('aria-expanded', String\(!isMinimized\)\)/);
-  assert.match(app, /setAttribute\('aria-label', isMinimized \? 'Restore' : 'Minimize'\)/);
-  assert.match(styles, /\.title-bar-controls button\[aria-controls\]\s*{[^}]*background-image:/s);
+  assert.match(app, /isMinimized \? 'Expand' : 'Collapse'/);
+  assert.doesNotMatch(generator, /98\.css/);
+  assert.match(generator, /aria-label="Contents"/);
 });
 
 test('new summary windows use mobile cards and preserve native disclosure controls', () => {
-  assert.match(generator, /data-window-id="player-overview"/);
+  assert.doesNotMatch(generator, /data-window-id="player-overview"/);
   assert.match(generator, /data-window-id="sailing-progress"/);
   assert.match(generator, /data-window-id="sea-charting-explorer"/);
   assert.match(app, /<details class="sailing-chart-group"/);
   assert.match(app, /<details class="sailing-sea-group">/);
   assert.match(app, /<summary>/);
-  assert.match(styles, /\.overview-grid,[\s\S]*?\.sailing-explorer-controls\s*{\s*grid-template-columns:\s*1fr/s);
+  assert.match(styles, /\.sailing-player-grid[\s\S]*?\.sailing-explorer-controls\s*{\s*grid-template-columns:\s*1fr/s);
 });
 
 test('returning users receive the versioned general-tracker window rebalance', () => {
-  assert.match(generator, /data-window-catalog-version="3"/);
+  assert.match(generator, /data-window-catalog-version="4"/);
   assert.match(generator, /data-introduced-version="\$\{window\.introducedVersion \|\| 1\}"/);
   assert.match(app, /introducedVersion\s*>\s*seenCatalogVersion/);
   assert.match(app, /GENERAL_TRACKER_REBALANCE_VERSION = 3/);
   assert.match(app, /SAILING_WINDOW_IDS = new Set/);
   assert.match(init, /introducedVersion\s*<=\s*seenCatalogVersion/);
+});
+
+
+test('wide mobile comparisons retain item and task labels when scrolled', () => {
+  for (const selector of ['.achievement-diaries-table td:first-child:not([colspan])', '.collection-log-table td:nth-child(2)', '.combat-achievements-table td:nth-child(3)', '#achievements-table-container td:first-child']) {
+    assert.ok(styles.includes(selector));
+  }
 });

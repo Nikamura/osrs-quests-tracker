@@ -34,7 +34,7 @@ test('manifest, crawler policy, sitemap, and SVG favicon use stable production p
   assert.match(manifest.description, /skills, XP, quests/);
   assert.doesNotMatch(manifest.description, /Sailing/);
   assert.equal(manifest.start_url, '/');
-  assert.equal(manifest.theme_color, '#008080');
+  assert.equal(manifest.theme_color, '#605443');
   assert.deepEqual(
     manifest.icons.map(icon => [icon.src, icon.sizes]),
     [
@@ -53,5 +53,5 @@ test('manifest, crawler policy, sitemap, and SVG favicon use stable production p
 
   const favicon = readFileSync(publicAsset('favicon.svg'), 'utf8');
   assert.match(favicon, /viewBox="0 0 64 64"/);
-  assert.match(favicon, /shape-rendering="crispEdges"/);
+  assert.match(favicon, /aria-labelledby="title description"/);
 });

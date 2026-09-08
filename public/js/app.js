@@ -65,6 +65,20 @@ async function loadAppData() {
   playerToDisplay = configData.playerToDisplay;
   playerColors = configData.playerColors;
   CHART_COLORS = configData.chartColors;
+  const palette = ['#c32727', '#005ddd', '#697800', '#168039', '#853acb', '#a85d00', '#008c9e', '#be1680', '#424242'];
+  Object.keys(playerToDisplay).forEach((player, index) => { playerColors[player] = palette[index % palette.length]; });
+  for (const data of [originalChartData, originalTotalLevelChartData, originalTotalExpChartData, originalSkillLevelChartData]) {
+    data?.datasets.forEach(dataset => {
+      const color = playerColors[displayToPlayer[dataset.label]] || '#605443';
+      dataset.borderColor = color;
+      dataset.backgroundColor = color;
+    });
+  }
+  CHART_COLORS = palette;
+  document.querySelectorAll('input[type="checkbox"][id^="player-"]').forEach(input => {
+    const label = input.nextElementSibling;
+    if (label?.classList.contains('player-label')) label.style.color = safePlayerColor(input.value);
+  });
 }
 
 function computeRankings(items, valueKey) {
@@ -109,6 +123,10 @@ function safeWikiUrl(value) {
 function safePlayerColor(player) {
   const configuredColor = playerColors[player];
   return /^#[0-9a-f]{6}$/i.test(configuredColor || '') ? configuredColor : '#008080';
+}
+
+function playerNameHtml(player, name = getDisplayName(player)) {
+  return `<span class="player-identity" style="color:${safePlayerColor(player)}">${escapeHtml(name)}</span>`;
 }
 
 function readStoredStringArray(key) {
@@ -231,8 +249,7 @@ function loadTotalXpLogScalePreference() {
 
 function applyTotalXpScale(isLog) {
   if (!totalExpChart) return;
-  totalExpChart.options.scales.y.type = isLog ? 'logarithmic' : 'linear';
-  totalExpChart.update();
+  updateTotalExpChart(getSelectedPlayers());
 }
 
 function initializeTotalXpScaleButton() {
@@ -274,15 +291,9 @@ function updateAchievementsFilterButtonLabel() {
     totalMajor = Array.from(majorRows).filter(row => row.style.display !== 'none').length;
   }
 
-  if (showOnlyMajorAchievements) {
-    toggleButton.textContent = totalMajor > 0
-      ? 'Show All Achievements (' + totalMajor + ' major highlighted)'
-      : 'Show All Achievements';
-  } else {
-    toggleButton.textContent = totalMajor > 0
-      ? 'Show Only Major Achievements (' + totalMajor + ')'
-      : 'No Major Achievements Yet';
-  }
+  toggleButton.setAttribute('aria-pressed', String(showOnlyMajorAchievements));
+  toggleButton.textContent = showOnlyMajorAchievements ? 'Show all updates' : `Major only (${totalMajor})`;
+
 }
 
 function initializeAchievementsFilter() {
@@ -338,10 +349,11 @@ function updatePlayerSelection() {
   updateCollectionLogTable(selectedPlayers);
   updateAchievementsTable(selectedPlayers);
   updateActivitiesTable(selectedPlayers);
-  renderPlayerOverview(selectedPlayers);
   renderSailingProgress(selectedPlayers);
   renderSeaChartingExplorer(selectedPlayers);
 
+  // Recount searches after the player filters have updated row visibility.
+  document.querySelectorAll('.table-search input').forEach(input => input.dispatchEvent(new Event('input')));
   // Save selection state
   savePlayerSelection(selectedPlayers);
 }
@@ -466,9 +478,7 @@ function updateChartInstance(chartInstance, originalData, selectedPlayers) {
     return playerKey && selectedPlayers.includes(playerKey);
   });
   const { datasets, labels } = filterDatasetsByTime(filteredDatasets, timePeriod);
-  chartInstance.data.datasets = datasets;
-  chartInstance.data.labels = labels || originalData.labels;
-  chartInstance.update();
+  renderProgressChart(chartInstance, datasets);
 }
 
 function updateChart(selectedPlayers) {
@@ -481,7 +491,12 @@ function updateTotalLevelChart(selectedPlayers) {
 
 function updateTotalExpChart(selectedPlayers) {
   renderXpTrends(selectedPlayers);
-  updateChartInstance(totalExpChart, originalTotalExpChartData, selectedPlayers);
+  if (!totalExpChart) return;
+  const datasets = selectedPlayers.map(player => ({
+    label: getDisplayName(player), borderColor: playerColors[player],
+    data: xpSeriesData(xpHistory[player] || [], getSelectedTimePeriod(), xpChartMode === 'gained')
+  }));
+  renderProgressChart(totalExpChart, datasets, { xp: true });
 }
 
 function updateSkillLevelChart(selectedPlayers) {
@@ -509,13 +524,7 @@ function updateSkillLevelChart(selectedPlayers) {
   // Apply time period filter
   const { datasets, labels } = filterDatasetsByTime(newChartData.datasets, timePeriod);
 
-  skillLevelChart.data.datasets = datasets;
-  if (labels) {
-    skillLevelChart.data.labels = labels;
-  } else {
-    skillLevelChart.data.labels = newChartData.labels;
-  }
-  skillLevelChart.update();
+  renderProgressChart(skillLevelChart, datasets, { skill: selectedSkill });
 }
 
 function updateSkillChart() {
@@ -550,19 +559,11 @@ function generateTimeSeriesChartDataJS(playerData, valueExtractor) {
 
   for (const player in playerData) {
     const data = playerData[player];
-    const color = colors[colorIndex % colors.length];
+    const color = playerColors[player] || colors[colorIndex % colors.length];
     colorIndex++;
 
     const formattedData = data.map(d => ({
-      x: new Date(d.timestamp).toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'Europe/Vilnius'
-      }),
+      x: new Date(d.timestamp).getTime(),
       y: valueExtractor(d)
     }));
 
@@ -815,6 +816,9 @@ function updateAchievementsTable(selectedPlayers) {
     }
   });
 
+  const summary = document.getElementById('achievement-summary');
+  if (summary) summary.innerHTML = generateAchievementSummary((tableData?.achievements || []).filter(item =>
+    selectedPlayers.includes(item.player) && (!showOnlyMajorAchievements || item.isMajorAchievement)));
   updateAchievementsFilterButtonLabel();
 }
 
@@ -912,8 +916,9 @@ function updateWindowAccessibilityState(windowElement) {
     windowBody.id = bodyId;
     minimizeButton.setAttribute('aria-controls', bodyId);
     minimizeButton.setAttribute('aria-expanded', String(!isMinimized));
-    minimizeButton.setAttribute('aria-label', isMinimized ? 'Restore' : 'Minimize');
-    minimizeButton.setAttribute('title', isMinimized ? `Restore ${title}` : `Minimize ${title}`);
+    minimizeButton.setAttribute('aria-label', `${isMinimized ? 'Expand' : 'Collapse'} ${title}`);
+    minimizeButton.textContent = isMinimized ? 'Show' : 'Hide';
+    minimizeButton.setAttribute('title', `${isMinimized ? 'Expand' : 'Collapse'} ${title}`);
   }
 
   if (closeButton) {
@@ -928,7 +933,7 @@ function initializeWindowAccessibility() {
 
 // Load minimized states from localStorage
 function loadMinimizedStates() {
-  const savedStates = readStoredObject('osrs-minimized-windows') || {};
+  const savedStates = readStoredObject(document.body.dataset.layout === 'wiki' ? 'osrs-collapsed-sections' : 'osrs-minimized-windows') || {};
   document.querySelectorAll('.window').forEach(windowElement => {
     const windowId = getWindowId(windowElement);
     if (savedStates[windowId]) {
@@ -945,7 +950,7 @@ function saveMinimizedStates() {
     const windowId = getWindowId(windowElement);
     states[windowId] = windowElement.classList.contains('minimized');
   });
-  localStorage.setItem('osrs-minimized-windows', JSON.stringify(states));
+  localStorage.setItem(document.body.dataset.layout === 'wiki' ? 'osrs-collapsed-sections' : 'osrs-minimized-windows', JSON.stringify(states));
 }
 
 // Load window order from localStorage
@@ -1078,171 +1083,9 @@ function closeWindow(button) {
   }
 }
 
-// Initialize drag and drop functionality
-function initializeDragAndDrop() {
-  if (!window.matchMedia('(min-width: 701px) and (pointer: fine)').matches) {
-    document.querySelectorAll('.title-bar').forEach(titleBar => {
-      titleBar.draggable = false;
-      titleBar.style.cursor = 'default';
-    });
-    return;
-  }
-
-  const container = document.querySelector('.container');
-  let draggedElement = null;
-  let dropIndicator = null;
-
-  // Create drop indicator
-  dropIndicator = document.createElement('div');
-  dropIndicator.className = 'drop-indicator';
-  document.body.appendChild(dropIndicator);
-
-  document.querySelectorAll('.window').forEach(windowElement => {
-    // Make only the title bar draggable
-    const titleBar = windowElement.querySelector('.title-bar');
-    if (titleBar) {
-      titleBar.draggable = true;
-      titleBar.style.cursor = 'grab';
-
-      titleBar.addEventListener('dragstart', function(e) {
-        draggedElement = windowElement;
-        windowElement.classList.add('dragging');
-        container.classList.add('drag-over');
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/html', windowElement.outerHTML);
-      });
-
-      titleBar.addEventListener('dragend', function(e) {
-        windowElement.classList.remove('dragging');
-        container.classList.remove('drag-over');
-        dropIndicator.style.display = 'none';
-        draggedElement = null;
-      });
-
-      titleBar.addEventListener('dragenter', function(e) {
-        titleBar.style.cursor = 'grabbing';
-      });
-
-      titleBar.addEventListener('dragleave', function(e) {
-        titleBar.style.cursor = 'grab';
-      });
-    }
-
-    // Handle drop zones for other windows
-    windowElement.addEventListener('dragover', function(e) {
-      if (draggedElement && draggedElement !== this) {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-
-        const rect = this.getBoundingClientRect();
-        const midY = rect.top + rect.height / 2;
-
-        if (e.clientY < midY) {
-          // Show indicator above this element
-          dropIndicator.style.display = 'block';
-          dropIndicator.style.top = (rect.top - 2) + 'px';
-          dropIndicator.style.left = rect.left + 'px';
-          dropIndicator.style.width = rect.width + 'px';
-        } else {
-          // Show indicator below this element
-          dropIndicator.style.display = 'block';
-          dropIndicator.style.top = (rect.bottom - 2) + 'px';
-          dropIndicator.style.left = rect.left + 'px';
-          dropIndicator.style.width = rect.width + 'px';
-        }
-      }
-    });
-
-    windowElement.addEventListener('drop', function(e) {
-      if (draggedElement && draggedElement !== this) {
-        e.preventDefault();
-
-        const rect = this.getBoundingClientRect();
-        const midY = rect.top + rect.height / 2;
-
-        if (e.clientY < midY) {
-          // Insert before this element
-          container.insertBefore(draggedElement, this);
-        } else {
-          // Insert after this element
-          container.insertBefore(draggedElement, this.nextSibling);
-        }
-
-        // Save and sync the new order
-        saveWindowOrder();
-
-        // Broadcast order change to other windows/tabs
-        const newOrder = Array.from(container.querySelectorAll('.window')).map(w => getWindowId(w));
-        localStorage.setItem('osrs-order-change', JSON.stringify({
-          order: newOrder,
-          timestamp: Date.now()
-        }));
-      }
-    });
-  });
-
-  // Handle drag over container (for empty spaces)
-  container.addEventListener('dragover', function(e) {
-    if (draggedElement) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-
-      // Find the closest window element
-      const afterElement = getDragAfterElement(container, e.clientY);
-      if (!afterElement) {
-        // Show indicator at the end
-        const lastWindow = container.lastElementChild;
-        if (lastWindow) {
-          const rect = lastWindow.getBoundingClientRect();
-          dropIndicator.style.display = 'block';
-          dropIndicator.style.top = (rect.bottom + 10) + 'px';
-          dropIndicator.style.left = rect.left + 'px';
-          dropIndicator.style.width = rect.width + 'px';
-        }
-      }
-    }
-  });
-
-  container.addEventListener('drop', function(e) {
-    if (draggedElement) {
-      e.preventDefault();
-      const afterElement = getDragAfterElement(container, e.clientY);
-      if (!afterElement) {
-        container.appendChild(draggedElement);
-      } else {
-        container.insertBefore(draggedElement, afterElement);
-      }
-
-      // Save and sync the new order
-      saveWindowOrder();
-
-      // Broadcast order change to other windows/tabs
-      const newOrder = Array.from(container.querySelectorAll('.window')).map(w => getWindowId(w));
-      localStorage.setItem('osrs-order-change', JSON.stringify({
-        order: newOrder,
-        timestamp: Date.now()
-      }));
-    }
-  });
-}
-
-function getDragAfterElement(container, y) {
-  const draggableElements = [...container.querySelectorAll('.window:not(.dragging)')];
-
-  return draggableElements.reduce((closest, child) => {
-    const box = child.getBoundingClientRect();
-    const offset = y - box.top - box.height / 2;
-
-    if (offset < 0 && offset > closest.offset) {
-      return { offset: offset, element: child };
-    } else {
-      return closest;
-    }
-  }, { offset: Number.NEGATIVE_INFINITY }).element;
-}
-
 // Listen for storage changes from other windows/tabs
 window.addEventListener('storage', function(e) {
+  if (document.body.dataset.layout === 'wiki') return;
   try {
     if (e.key === 'osrs-window-change') {
       const change = JSON.parse(e.newValue);
@@ -1274,7 +1117,7 @@ function generateQuestComparisonTable(comparisonData) {
   // Header
   tableHtml += '<thead><tr><th>Quest</th>';
   for (const player of players) {
-    tableHtml += `<th>${escapeHtml(getDisplayName(player))}</th>`;
+    tableHtml += `<th>${playerNameHtml(player)}</th>`;
   }
   tableHtml += '</tr></thead>';
 
@@ -1295,9 +1138,9 @@ function generateQuestComparisonTable(comparisonData) {
     tableHtml += `<tr class="${rowClass}">`;
     const meta = questMetaByName ? questMetaByName[quest] : null;
     if (meta && meta.nameWikiLink) {
-      tableHtml += `<td><a href="${safeWikiUrl(meta.nameWikiLink)}" target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: inherit;">${escapeHtml(quest)}</a></td>`;
+      tableHtml += `<td><a href="${safeWikiUrl(meta.nameWikiLink)}" target="_blank" rel="noopener noreferrer" ><span class="icon-label">${osrsIcon('Quest_point_icon')}${escapeHtml(quest)}</span></a></td>`;
     } else {
-      tableHtml += `<td>${escapeHtml(quest)}</td>`;
+      tableHtml += `<td><span class="icon-label">${osrsIcon('Quest_point_icon')}${escapeHtml(quest)}</span></td>`;
     }
     for (const status of statuses) {
       let statusClass = 'status-not-started';
@@ -1310,7 +1153,7 @@ function generateQuestComparisonTable(comparisonData) {
         statusClass = 'status-completed';
         statusLabel = 'Completed';
       }
-      tableHtml += `<td class="${statusClass}" aria-label="${statusLabel}" title="${statusLabel}"></td>`;
+      tableHtml += `<td class="${statusClass}" aria-label="${statusLabel}" title="${statusLabel}"><span aria-hidden="true">${status === 2 ? '✓' : status === 1 ? '◐' : '—'}</span></td>`;
     }
     tableHtml += '</tr>';
   }
@@ -1350,7 +1193,7 @@ function generateLevelComparisonTable(comparisonData) {
   // Header
   tableHtml += '<thead><tr><th>Skill</th>';
   for (const player of players) {
-    tableHtml += `<th>${escapeHtml(getDisplayName(player))}</th>`;
+    tableHtml += `<th>${playerNameHtml(player)}</th>`;
   }
   tableHtml += '</tr></thead>';
 
@@ -1358,7 +1201,7 @@ function generateLevelComparisonTable(comparisonData) {
   tableHtml += '<tbody>';
   for (const skill of skills) {
     tableHtml += '<tr>';
-    tableHtml += `<td>${escapeHtml(skill)}</td>`;
+    tableHtml += `<td><span class="icon-label">${osrsIcon(SKILL_ICONS.has(skill) ? `${skill}_icon` : null)}${escapeHtml(skill)}</span></td>`;
 
     // Get all levels for this skill to determine rankings
     const skillLevels = players.map(player => ({
@@ -1425,14 +1268,14 @@ function generateAchievementDiaryComparisonTable(comparisonData) {
   // Header
   tableHtml += '<thead><tr><th>Achievement Diary</th>';
   for (const player of players) {
-    tableHtml += `<th>${escapeHtml(getDisplayName(player))}</th>`;
+    tableHtml += `<th>${playerNameHtml(player)}</th>`;
   }
   tableHtml += '</tr></thead>';
 
   // Body
   tableHtml += '<tbody>';
   for (const achievement of achievements) {
-    tableHtml += `<tr><td colspan="${players.length + 1}" style="background-color: #e0e0e0; font-weight: bold; text-align: center;">${escapeHtml(achievement)}</td></tr>`;
+    tableHtml += `<tr><td colspan="${players.length + 1}" style="background-color: var(--body-mid); font-weight: bold; text-align: center;"><span class="icon-label">${osrsIcon('Achievement_Diaries_icon')}${escapeHtml(achievement)}</span></td></tr>`;
 
     // Add rows for each difficulty level
     const difficulties = ['Easy', 'Medium', 'Hard', 'Elite'];
@@ -1554,7 +1397,7 @@ function generateCombatAchievementsComparisonTable(comparisonData) {
   // Header
   tableHtml += '<thead><tr><th style="width: 50px;">Tier</th><th>Monster</th><th>Achievement</th>';
   for (const player of players) {
-    tableHtml += `<th style="width: 80px;">${escapeHtml(getDisplayName(player))}</th>`;
+    tableHtml += `<th style="width: 80px;">${playerNameHtml(player)}</th>`;
   }
   tableHtml += '</tr></thead>';
 
@@ -1585,13 +1428,13 @@ function generateCombatAchievementsComparisonTable(comparisonData) {
 
     // Monster name with link (if available)
     if (achievement.monster && achievement.monster !== 'N/A' && achievement.monsterWikiLink) {
-      tableHtml += `<td><a href="${safeWikiUrl(achievement.monsterWikiLink)}" target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: inherit;">${escapeHtml(achievement.monster)}</a></td>`;
+      tableHtml += `<td><a href="${safeWikiUrl(achievement.monsterWikiLink)}" target="_blank" rel="noopener noreferrer" ><span class="icon-label">${entityIcon(achievement.monster)}${escapeHtml(achievement.monster)}</span></a></td>`;
     } else {
       tableHtml += `<td style="color: #666; font-style: italic;">${escapeHtml(achievement.monster || 'Various')}</td>`;
     }
 
     // Achievement name with link
-    tableHtml += `<td><a href="${safeWikiUrl(achievement.nameWikiLink)}" target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: inherit;" title="${escapeHtml(achievement.description)}">${escapeHtml(achievement.name)}</a></td>`;
+    tableHtml += `<td><a href="${safeWikiUrl(achievement.nameWikiLink)}" target="_blank" rel="noopener noreferrer"  title="${escapeHtml(achievement.description)}">${escapeHtml(achievement.name)}</a></td>`;
 
     // Player columns
     for (const status of statuses) {
@@ -1644,7 +1487,7 @@ function generateMusicTracksComparisonTable(comparisonData, musicTracksData) {
   // Header
   tableHtml += '<thead><tr><th>Music Track</th>';
   for (const player of players) {
-    tableHtml += `<th>${escapeHtml(getDisplayName(player))}</th>`;
+    tableHtml += `<th>${playerNameHtml(player)}</th>`;
   }
   tableHtml += '</tr></thead>';
 
@@ -1673,9 +1516,9 @@ function generateMusicTracksComparisonTable(comparisonData, musicTracksData) {
     tableHtml += `<tr class="${rowClass}">`;
     const meta = musicTracksData && musicTracksData[track];
     if (meta && meta.nameWikiLink) {
-      tableHtml += `<td><a href="${safeWikiUrl(meta.nameWikiLink)}" target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: inherit;">${escapeHtml(track)}</a></td>`;
+      tableHtml += `<td><a href="${safeWikiUrl(meta.nameWikiLink)}" target="_blank" rel="noopener noreferrer" ><span class="icon-label">${osrsIcon('Music')}${escapeHtml(track)}</span></a></td>`;
     } else {
-      tableHtml += `<td>${escapeHtml(track)}</td>`;
+      tableHtml += `<td><span class="icon-label">${osrsIcon('Music')}${escapeHtml(track)}</span></td>`;
     }
 
     for (const status of statuses) {
@@ -1746,7 +1589,7 @@ function generateCollectionLogComparisonTable(comparisonData) {
   tableHtml += '<th style="width: 50px;">Icon</th>';
   tableHtml += '<th>Item</th>';
   for (const player of players) {
-    tableHtml += `<th style="width: 80px;">${escapeHtml(getDisplayName(player))}</th>`;
+    tableHtml += `<th style="width: 80px;">${playerNameHtml(player)}</th>`;
   }
   tableHtml += '</tr></thead>';
 
@@ -1772,10 +1615,10 @@ function generateCollectionLogComparisonTable(comparisonData) {
     tableHtml += `<tr class="${rowClass}">`;
 
     // Item icon
-    tableHtml += `<td style="text-align: center;"><img src="${safeWikiUrl(item.itemIcon)}" alt="${escapeHtml(item.itemName)}" width="32" height="32" onerror="this.src='https://oldschool.runescape.wiki/images/Bank_filler.png'" style="image-rendering: pixelated;"></td>`;
+    tableHtml += `<td style="text-align: center;"><img src="${safeWikiUrl(item.itemIcon)}" alt="${escapeHtml(item.itemName)}" width="32" height="32" loading="lazy" onerror="this.onerror=null;this.src='/icons/osrs/Collection_log.png'" style="image-rendering: pixelated;"></td>`;
 
     // Item name
-    tableHtml += `<td><a href="${safeWikiUrl(item.itemLink)}" target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: inherit;">${escapeHtml(item.itemName)}</a></td>`;
+    tableHtml += `<td><a href="${safeWikiUrl(item.itemLink)}" target="_blank" rel="noopener noreferrer" >${escapeHtml(item.itemName)}</a></td>`;
 
     // Player columns
     for (const player of players) {
@@ -1830,7 +1673,7 @@ function generateActivitiesComparisonTable(comparisonData) {
   // Header
   tableHtml += '<thead><tr><th>Activity</th>';
   for (const player of players) {
-    tableHtml += `<th>${escapeHtml(getDisplayName(player))}</th>`;
+    tableHtml += `<th>${playerNameHtml(player)}</th>`;
   }
   tableHtml += '</tr></thead>';
 
@@ -1838,7 +1681,7 @@ function generateActivitiesComparisonTable(comparisonData) {
   tableHtml += '<tbody>';
   for (const activity of activities) {
     tableHtml += '<tr>';
-    tableHtml += `<td>${escapeHtml(activity)}</td>`;
+    tableHtml += `<td><span class="icon-label">${entityIcon(activity)}${escapeHtml(activity)}</span></td>`;
 
     const activityScores = players.map(player => ({
       player,
@@ -1886,6 +1729,114 @@ function generateActivitiesComparisonTable(comparisonData) {
   return tableHtml;
 }
 
+const ENTITY_ICONS = {
+  "Abyssal Sire": "Abyssal_Sire_icon",
+  "Alchemical Hydra": "Alchemical_Hydra_icon",
+  "Amoxliatl": "Amoxliatl",
+  "Araxxor": "Araxxor",
+  "Artio": "Artio",
+  "Basilisk Knight": "Basilisk_Knight_icon",
+  "Bloodveld": "Bloodveld_icon",
+  "Brutus": "Brutus",
+  "Bryophyta": "Bryophyta_icon",
+  "Callisto": "Callisto",
+  "Calvar'ion": "Calvar'ion",
+  "Cerberus": "Cerberus_icon",
+  "Chaos Elemental": "Chaos_Elemental",
+  "Chaos Fanatic": "Chaos_Fanatic",
+  "Clue Scrolls (all)": "Clue_scroll_(master)",
+  "Clue Scrolls (beginner)": "Clue_scroll_(master)",
+  "Clue Scrolls (easy)": "Clue_scroll_(master)",
+  "Clue Scrolls (elite)": "Clue_scroll_(master)",
+  "Clue Scrolls (hard)": "Clue_scroll_(master)",
+  "Clue Scrolls (master)": "Clue_scroll_(master)",
+  "Clue Scrolls (medium)": "Clue_scroll_(master)",
+  "Commander Zilyana": "Commander_Zilyana_icon",
+  "Corporeal Beast": "Corporeal_Beast_icon",
+  "Corrupted Hunllef": "Corrupted_Hunllef",
+  "Crystalline Hunllef": "Crystalline_Hunllef_icon",
+  "Dagannoth Prime": "Dagannoth_Prime",
+  "Dagannoth Rex": "Dagannoth_Rex",
+  "Dagannoth Supreme": "Dagannoth_Supreme",
+  "Doom of Mokhaiotl": "Doom_of_Mokhaiotl",
+  "Duke Sucellus": "Duke_Sucellus",
+  "Fortis Colosseum": "Fortis_Colosseum",
+  "Fragment of Seren": "Fragment_of_Seren",
+  "Galvek": "Galvek",
+  "Gargoyle": "Gargoyle_icon",
+  "General Graardor": "General_Graardor_icon",
+  "Giant Mole": "Giant_Mole_icon",
+  "Glough": "Glough",
+  "Grotesque Guardians": "Grotesque_Guardians_icon",
+  "Hellhound": "Hellhound_icon",
+  "Hespori": "Hespori_icon",
+  "K'ril Tsutsaroth": "K'ril_Tsutsaroth_icon",
+  "Kalphite Queen": "Kalphite_Queen_icon",
+  "King Black Dragon": "King_Black_Dragon_icon",
+  "Kraken": "Kraken_icon",
+  "Kree'arra": "Kree'arra_icon",
+  "Kurask": "Kurask_icon",
+  "Leviathan": "Leviathan",
+  "Mad Angel": "Mad_Angel",
+  "Maggot King": "Maggot_King",
+  "Mimic": "Mimic",
+  "Nex": "Nex_icon",
+  "Obor": "Obor_icon",
+  "Rifts closed": "Runecraft_icon",
+  "Sarachnis": "Sarachnis_icon",
+  "Scorpia": "Scorpia",
+  "Scurrius": "Scurrius",
+  "Sea charting tasks": "Sailing_icon",
+  "Shellbane gryphon": "Shellbane_gryphon",
+  "Skeletal Wyvern": "Skeletal_Wyvern_icon",
+  "Skotizo": "Skotizo_icon",
+  "Spindel": "Spindel",
+  "Tempoross": "Tempoross_icon",
+  "The Corrupted Gauntlet": "Corrupted_Hunllef",
+  "The Gauntlet": "Crystalline_Hunllef_icon",
+  "The Hueycoatl": "The_Hueycoatl",
+  "The Leviathan": "The_Leviathan",
+  "The Mimic": "The_Mimic_icon",
+  "The Nightmare": "The_Nightmare_icon",
+  "The Whisperer": "The_Whisperer",
+  "Tombs of Amascut": "Combat_icon",
+  "Tombs of Amascut: Expert Mode": "Combat_icon",
+  "TzHaar-Ket-Rak's Challenges": "TzHaar-Ket-Rak's_Challenges",
+  "TzKal-Zuk": "TzKal-Zuk_icon",
+  "TzTok-Jad": "TzTok-Jad",
+  "Vardorvis": "Vardorvis",
+  "Venenatis": "Venenatis",
+  "Vet'ion": "Vet'ion",
+  "Vorkath": "Vorkath_icon",
+  "Wintertodt": "Wintertodt_icon",
+  "Wyrm": "Wyrm_icon",
+  "Yama": "Yama",
+  "Zalcano": "Zalcano_icon",
+  "Zulrah": "Zulrah_icon"
+};
+
+function entityIcon(name) {
+  const exact = ENTITY_ICONS[name];
+  const activity = Object.keys(ENTITY_ICONS).sort((a, b) => b.length - a.length).find(key => name?.startsWith(`${key} (`));
+  return osrsIcon(exact || ENTITY_ICONS[activity] || 'Combat_icon');
+}
+
+function achievementIcon(achievement) {
+  if (achievement.type === 'level' && SKILL_ICONS.has(achievement.skill)) return osrsIcon(`${achievement.skill}_icon`);
+  if (achievement.type === 'activity') return entityIcon(achievement.name);
+  return osrsIcon(ACTIVITY_ICONS[achievement.type]);
+}
+
+const ACTIVITY_ICONS = {
+  level: 'Skills_icon', quest: 'Quest_point_icon', diary: 'Achievement_Diaries_icon',
+  combat: 'Combat_icon', activity: 'Combat_icon', collection: 'Collection_log',
+  collection_item: 'Collection_log', music: 'Music', sea_charting: 'Sailing_icon'
+};
+const SKILL_ICONS = new Set(["Agility", "Attack", "Construction", "Cooking", "Crafting", "Defence", "Farming", "Firemaking", "Fishing", "Fletching", "Herblore", "Hitpoints", "Hunter", "Magic", "Mining", "Prayer", "Ranged", "Runecraft", "Sailing", "Slayer", "Smithing", "Strength", "Thieving", "Woodcutting"]);
+function osrsIcon(filename) {
+  return filename ? `<img class="osrs-icon" src="/icons/osrs/${encodeURIComponent(filename)}.png" width="20" height="20" alt="" aria-hidden="true" loading="lazy">` : '';
+}
+
 const TYPE_DISPLAY_NAMES = {
   collection_item: { singular: 'Collection Item', plural: 'Collection Items' },
   activity: { singular: 'Activity', plural: 'Activities' },
@@ -1898,65 +1849,37 @@ function formatTypeName(type, plural) {
   return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
+function generateAchievementSummary(achievements) {
+  if (!achievements.length) return '<p class="achievement-summary-empty">No updates match the selected players and filter.</p>';
+  const players = new Map();
+  const types = new Map();
+  for (const item of achievements) {
+    const player = players.get(item.player) || { name: item.displayName || getDisplayName(item.player), playerKey: item.player, count: 0 };
+    player.count++;
+    players.set(item.player, player);
+    const name = formatTypeName(item.type, true);
+    const entry = types.get(name) || {name, count: 0, icon: ACTIVITY_ICONS[item.type]};
+    entry.count++;
+    types.set(name, entry);
+  }
+  const list = entries => `<dl class="achievement-counts">${entries.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+    .map(item => `<div><dt>${osrsIcon(item.icon)}${item.playerKey ? playerNameHtml(item.playerKey, item.name) : escapeHtml(item.name)}</dt><dd>${item.count.toLocaleString()}</dd></div>`).join('')}</dl>`;
+  return `<div class="achievement-summary-heading"><strong>${achievements.length.toLocaleString()} recorded update${achievements.length === 1 ? '' : 's'}</strong><span>Last 30 days · selected players${showOnlyMajorAchievements ? ' · major milestones' : ''}</span></div>
+    <div class="achievement-breakdown"><section aria-label="Updates by player"><h3>By player</h3>${list([...players.values()])}</section>
+    <section aria-label="Updates by activity"><h3>By activity</h3>${list([...types.values()])}</section></div>`;
+}
+
 function generateAchievementsTable(achievementsData) {
   if (achievementsData.length === 0) {
     return "<p>No recent achievements found. Check back after more player data is collected!</p>";
   }
 
-  // Generate summary statistics
-  const playerStats = {};
-  const typeStats = {};
   const majorAchievementsCount = achievementsData.filter(achievement => achievement.isMajorAchievement).length;
-
-  for (const achievement of achievementsData) {
-    // Player stats
-    if (!playerStats[achievement.player]) {
-      playerStats[achievement.player] = { count: 0, displayName: achievement.displayName };
-    }
-    playerStats[achievement.player].count++;
-
-    // Type stats
-    if (!typeStats[achievement.type]) {
-      typeStats[achievement.type] = 0;
-    }
-    typeStats[achievement.type]++;
-  }
-
-  let tableHtml = '<div class="sunken-panel" role="region" aria-label="Recent achievements" tabindex="0" style="height: 400px; overflow: auto;">';
-
-  // Summary section
-  tableHtml += '<div style="margin-bottom: 20px;">';
-  tableHtml += '<h3>Achievement Summary (Last 30 Days)</h3>';
-
-  // Player summary
-  tableHtml += '<div style="display: flex; gap: 20px; margin-bottom: 15px;">';
-  tableHtml += '<div><strong>By Player:</strong><br>';
-  for (const [player, stats] of Object.entries(playerStats)) {
-    tableHtml += `${escapeHtml(stats.displayName)}: ${stats.count}<br>`;
-  }
-  tableHtml += '</div>';
-
-  // Type summary
-  tableHtml += '<div><strong>By Type:</strong><br>';
-  for (const [type, count] of Object.entries(typeStats)) {
-    tableHtml += `${formatTypeName(type, true)}: ${count}<br>`;
-  }
-  tableHtml += '</div>';
-  tableHtml += '</div>';
-
-  tableHtml += '</div>';
-
-  const majorButtonLabel = majorAchievementsCount > 0
-    ? `Show Only Major Achievements (${majorAchievementsCount})`
-    : 'No Major Achievements Yet';
-
-  tableHtml += '<div class="achievements-controls" style="display: flex; gap: 12px; align-items: center; margin-bottom: 15px;">';
-  tableHtml += `<button id="toggle-major-achievements" type="button" data-filter-state="all"${majorAchievementsCount === 0 ? ' disabled' : ''}>${majorButtonLabel}</button>`;
-  tableHtml += '<span id="major-achievements-hint" style="font-size: 0.85em; color: #555;">Major achievements cover new level 99 skills and freshly earned quest capes.</span>';
-  tableHtml += '</div>';
-
-  // Achievements table
-  tableHtml += '<table class="interactive" style="width: 100%;">';
+  let tableHtml = `<div id="achievement-summary">${generateAchievementSummary(achievementsData)}</div>`;
+  tableHtml += '<div class="achievements-controls">';
+  tableHtml += `<button id="toggle-major-achievements" type="button" aria-pressed="false" data-filter-state="all"${majorAchievementsCount === 0 ? ' disabled' : ''}>Major only (${majorAchievementsCount})</button>`;
+  tableHtml += '<span id="major-achievements-hint">Major milestones: level 99s and newly earned quest capes.</span></div>';
+  tableHtml += '<div class="sunken-panel achievement-feed" role="region" aria-label="Recent achievements" tabindex="0"><table class="interactive sticky-header">';
 
   // Header
   tableHtml += '<thead><tr><th>Player</th><th>Achievement</th><th>Type</th><th>Date</th></tr></thead>';
@@ -1968,17 +1891,8 @@ function generateAchievementsTable(achievementsData) {
   for (const achievement of achievementsData) {
     const ts = new Date(achievement.timestamp);
     const tsMs = ts.getTime();
-    const timeDiff = tsMs - new Date(achievement.previousTimestamp).getTime();
     const configuredColor = playerColors[achievement.player];
     const playerColor = /^#[0-9a-f]{6}$/i.test(configuredColor || '') ? configuredColor : '#999999';
-
-    // Consistent row styling - all rows get the same base styling
-    let rowStyle = `background-color: ${playerColor}33;`; // 33 for transparency
-
-    // Add subtle border for recent achievements (within 24 hours) without changing text weight
-    if (timeDiff < 1000 * 60 * 60 * 24) { // Less than 24 hours
-      rowStyle += ` border-left: 4px solid ${playerColor};`;
-    }
 
     const isMajor = achievement.isMajorAchievement === true;
 
@@ -2006,53 +1920,45 @@ function generateAchievementsTable(achievementsData) {
       });
     }
 
-    tableHtml += `<tr style="${rowStyle}" data-is-major="${isMajor ? 'true' : 'false'}">`;
+    tableHtml += `<tr data-is-major="${isMajor ? 'true' : 'false'}">`;
     tableHtml += `<td><strong style="color: ${playerColor};">${escapeHtml(achievement.displayName)}</strong></td>`;
 
     // Handle combat achievements with tier icons and links
     if (achievement.type === 'combat' && achievement.tierIconUrl && achievement.nameWikiLink) {
-      tableHtml += `<td style="display: flex; align-items: center; gap: 8px;">`;
+      tableHtml += `<td class="achievement-description">`;
       tableHtml += `<img src="${safeWikiUrl(achievement.tierIconUrl)}" alt="Tier" width="20" height="20" style="image-rendering: pixelated;">`;
-      tableHtml += `<a href="${safeWikiUrl(achievement.nameWikiLink)}" target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: inherit;" title="${escapeHtml(achievement.description || '')}">${escapeHtml(achievement.name)}</a>`;
+      tableHtml += `<a href="${safeWikiUrl(achievement.nameWikiLink)}" target="_blank" rel="noopener noreferrer"  title="${escapeHtml(achievement.description || '')}">${escapeHtml(achievement.name)}</a>`;
       tableHtml += `</td>`;
     }
     // Handle collection log items with item icons and links
     else if (achievement.type === 'collection_item' && achievement.itemIcon && achievement.itemLink) {
-      tableHtml += `<td style="display: flex; align-items: center; gap: 8px;">`;
-      tableHtml += `<img src="${safeWikiUrl(achievement.itemIcon)}" alt="${escapeHtml(achievement.name)}" width="20" height="20" style="image-rendering: pixelated;" onerror="this.src='https://oldschool.runescape.wiki/images/Bank_filler.png'">`;
-      tableHtml += `<a href="${safeWikiUrl(achievement.itemLink)}" target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: inherit;">${escapeHtml(achievement.name)}</a>`;
+      tableHtml += `<td class="achievement-description">`;
+      tableHtml += `<img src="${safeWikiUrl(achievement.itemIcon)}" alt="${escapeHtml(achievement.name)}" width="20" height="20" style="image-rendering: pixelated;" loading="lazy" onerror="this.onerror=null;this.src='/icons/osrs/Collection_log.png'">`;
+      tableHtml += `<a href="${safeWikiUrl(achievement.itemLink)}" target="_blank" rel="noopener noreferrer" >${escapeHtml(achievement.name)}</a>`;
       tableHtml += `</td>`;
     } else if (achievement.type === 'activity' && achievement.activityIcon && achievement.activityLink) {
-      tableHtml += `<td style="display: flex; align-items: center; gap: 8px;">`;
-      tableHtml += `<img src="${safeWikiUrl(achievement.activityIcon)}" alt="${escapeHtml(achievement.name)}" width="20" height="20" style="image-rendering: pixelated;" onerror="this.src='https://oldschool.runescape.wiki/images/Bank_filler.png'">`;
-      tableHtml += `<a href="${safeWikiUrl(achievement.activityLink)}" target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: inherit;">${escapeHtml(achievement.name)}</a>`;
+      tableHtml += `<td class="achievement-description">`;
+      tableHtml += `<img src="${safeWikiUrl(achievement.activityIcon)}" alt="${escapeHtml(achievement.name)}" width="20" height="20" style="image-rendering: pixelated;" loading="lazy" onerror="this.onerror=null;this.src='/icons/osrs/Collection_log.png'">`;
+      tableHtml += `<a href="${safeWikiUrl(achievement.activityLink)}" target="_blank" rel="noopener noreferrer" >${escapeHtml(achievement.name)}</a>`;
       tableHtml += `</td>`;
     } else if (achievement.type === 'level' && achievement.isMaxLevel) {
       // Highlight level 99 milestones with a golden badge and star
-      tableHtml += `<td style="display: flex; align-items: center; gap: 8px;">` +
-        `<span title="Level 99!" style="color: #FFD700;">\u2B50</span>` +
+      tableHtml += `<td class="achievement-description">` +
+        `${achievementIcon(achievement)}` +
         `<span class="badge-99" style="background: #FFD700; color: #000; padding: 2px 6px; border-radius: 3px; font-weight: bold;">99</span>` +
         `<span>${escapeHtml(achievement.name)}</span>` +
         `</td>`;
     } else {
-      tableHtml += `<td>${escapeHtml(achievement.name)}</td>`;
+      tableHtml += `<td><span class="icon-label">${achievementIcon(achievement)}${escapeHtml(achievement.name)}</span></td>`;
     }
 
-    tableHtml += `<td>${formatTypeName(achievement.type, false)}</td>`;
+    tableHtml += `<td><span class="icon-label">${osrsIcon(ACTIVITY_ICONS[achievement.type])}${formatTypeName(achievement.type, false)}</span></td>`;
     tableHtml += `<td>${dateWithTime}</td>`;
     tableHtml += '</tr>';
   }
   tableHtml += '</tbody></table></div>';
 
   return tableHtml;
-}
-
-function formatOverviewNumber(value, { compact = false } = {}) {
-  if (!Number.isFinite(value)) return '\u2014';
-  return new Intl.NumberFormat('en-US', compact ? {
-    notation: 'compact',
-    maximumFractionDigits: 1
-  } : {}).format(value);
 }
 
 function formatSnapshotTime(value) {
@@ -2066,46 +1972,6 @@ function formatSnapshotTime(value) {
     hour12: false,
     timeZone: 'Europe/Vilnius'
   })}`;
-}
-
-function renderPlayerOverview(selectedPlayers = getSelectedPlayers()) {
-  const container = document.getElementById('player-overview-container');
-  const data = tableData?.playerOverview;
-  if (!container || !data) return;
-
-  const players = data.players.filter(player => selectedPlayers.includes(player));
-  if (players.length === 0) {
-    container.innerHTML = '<p class="empty-panel-message">Select at least one player to see an overview.</p>';
-    return;
-  }
-
-  const cards = players.map(player => {
-    const stats = data.playerStats[player];
-    const metrics = [
-      ['Total level', formatOverviewNumber(stats.totalLevel)],
-      ['Total XP', formatOverviewNumber(stats.totalExperience, { compact: true })],
-      ['Quests', `${formatOverviewNumber(stats.completedQuests)}/${formatOverviewNumber(data.totals.quests)}`],
-      ['Level 99s', formatOverviewNumber(stats.maxedSkills)],
-      ['Collection log', formatOverviewNumber(stats.collectionLog)],
-      ['Combat tasks', `${formatOverviewNumber(stats.combatAchievements)}/${formatOverviewNumber(data.totals.combatAchievements)}`]
-    ];
-    const metricHtml = metrics.map(([label, value]) => `
-      <div class="overview-metric">
-        <span class="overview-metric-label">${escapeHtml(label)}</span>
-        <strong class="overview-metric-value">${escapeHtml(value)}</strong>
-      </div>`).join('');
-
-    return `
-      <article class="overview-card" style="--player-accent: ${safePlayerColor(player)};" aria-label="${escapeHtml(getDisplayName(player))} overview">
-        <header class="overview-card-header">
-          <strong>${escapeHtml(getDisplayName(player))}</strong>
-          <span>${escapeHtml(formatSnapshotTime(stats.snapshotAt))}</span>
-        </header>
-        <div class="overview-metrics">${metricHtml}</div>
-      </article>`;
-  }).join('');
-
-  container.innerHTML = `<div class="overview-grid">${cards}</div>`;
 }
 
 function sailingProgressPercentage(completed, total) {
@@ -2150,13 +2016,13 @@ function sailingExplorerMarkup(data, player, selectablePlayers) {
     `<option value="${escapeHtml(group.name)}" ${group.name === sailingExplorerGroup ? 'selected' : ''}>${escapeHtml(group.name)}</option>`
   ).join('');
   const playerOptions = selectablePlayers.map(playerName =>
-    `<option value="${escapeHtml(playerName)}" ${playerName === player ? 'selected' : ''}>${escapeHtml(getDisplayName(playerName))}</option>`
+    `<option style="color:${safePlayerColor(playerName)}" value="${escapeHtml(playerName)}" ${playerName === player ? 'selected' : ''}>${escapeHtml(getDisplayName(playerName))}</option>`
   ).join('');
 
   const controls = `
     <div class="sailing-explorer-controls">
       <label>Player
-        <select id="sailing-explorer-player" onchange="setSailingExplorerPlayer(this.value)">${playerOptions}</select>
+        <select id="sailing-explorer-player" style="color:${safePlayerColor(player)}" onchange="setSailingExplorerPlayer(this.value)">${playerOptions}</select>
       </label>
       <label>Chart area
         <select id="sailing-explorer-group" onchange="setSailingExplorerGroup(this.value)">
@@ -2285,7 +2151,7 @@ function renderSailingProgress(selectedPlayers = getSelectedPlayers()) {
     return `
       <article class="sailing-player-card" style="--player-accent: ${safePlayerColor(player)};">
         <div class="sailing-player-heading">
-          <strong>${escapeHtml(getDisplayName(player))}</strong>
+          <strong>${playerNameHtml(player)}</strong>
           <span>Sailing ${progress.sailingLevel ?? '\u2014'}</span>
         </div>
         <div class="sailing-player-total">${escapeHtml(charts)}</div>
@@ -2335,177 +2201,148 @@ function renderTables() {
   document.getElementById('collection-log-table-container').innerHTML = generateCollectionLogComparisonTable(tableData.collectionLog);
   document.getElementById('activities-table-container').innerHTML = generateActivitiesComparisonTable(tableData.activities);
   document.getElementById('achievements-table-container').innerHTML = generateAchievementsTable(tableData.achievements);
-  renderPlayerOverview();
   renderSailingProgress();
   renderSeaChartingExplorer();
 }
 
-function cloneChartData(data) {
-  return JSON.parse(JSON.stringify(data));
+let xpChartMode = 'gained';
+
+function xpSeriesData(history, days, gained) {
+  const cutoff = days === 'all' ? -Infinity : Date.now() - Number(days) * 86400000;
+  const points = history.map(p => [Date.parse(p.timestamp), p.totalExp])
+    .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]))
+    .sort((a, b) => a[0] - b[0]).filter(p => p[0] >= cutoff);
+  const baseline = points[0]?.[1] || 0;
+  return points.map((p, i) => ({
+    value: [p[0], gained ? p[1] - baseline : p[1]],
+    total: p[1], delta: i && p[1] >= points[i - 1][1] ? p[1] - points[i - 1][1] : null
+  }));
 }
 
-function withResponsiveChartOptions(options) {
-  const compact = window.matchMedia('(max-width: 700px)').matches;
-  const responsiveOptions = {
-    ...options,
-    responsive: true,
-    maintainAspectRatio: false
-  };
+const chartHoveredSeries = new WeakMap();
 
-  if (!compact) return responsiveOptions;
+function highlightTooltipPlayer(chart, seriesIndex) {
+  chartHoveredSeries.set(chart, seriesIndex);
+  chart.getDom().querySelectorAll('.chart-tooltip-entry').forEach(row => {
+    row.classList.toggle('is-highlighted', Number(row.dataset.seriesIndex) === seriesIndex);
+  });
+}
 
-  responsiveOptions.layout = {
-    ...options.layout,
-    padding: 0
-  };
-  responsiveOptions.plugins = {
-    ...options.plugins,
-    legend: {
-      labels: {
-        boxWidth: 10,
-        boxHeight: 10,
-        padding: 8,
-        font: { size: 10 }
-      }
-    }
-  };
-  responsiveOptions.scales = {
-    ...options.scales,
-    x: {
-      ...options.scales?.x,
-      ticks: {
-        ...options.scales?.x?.ticks,
-        autoSkip: true,
-        maxRotation: 0,
-        maxTicksLimit: 4
-      }
-    }
-  };
-  return responsiveOptions;
+function formatProgressTooltip(params, icon, xp, selectedSeries) {
+  if (!params.length) return '';
+  const number = value => Number(value).toLocaleString('en-US');
+  const date = new Date(params[0].value[0]).toLocaleString('en-GB', { timeZone: 'Europe/Vilnius', dateStyle: 'medium', timeStyle: 'short' });
+  const sorted = [...params].sort((a, b) => b.value[1] - a.value[1] || a.seriesName.localeCompare(b.seriesName));
+  return `<div class="chart-tooltip-heading">${osrsIcon(icon)}${escapeHtml(date)}</div>` + sorted.map(p => {
+    const color = /^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : '#94866d';
+    return `<div class="chart-tooltip-entry${p.seriesIndex === selectedSeries ? ' is-highlighted' : ''}" data-series-index="${Number(p.seriesIndex)}" style="--series-color:${color}">` +
+      `<div class="chart-tooltip-row"><strong><span class="chart-tooltip-swatch"></span>${escapeHtml(p.seriesName)}</strong><span>${number(p.value[1])}${xp ? ' XP' : ''}</span></div>` +
+      (xp ? `<div class="chart-tooltip-detail">Total ${number(p.data.total)} · ${p.data.delta === null ? 'No previous snapshot in range' : `+${number(p.data.delta)} since previous snapshot`}</div>` : '') + '</div>';
+  }).join('');
+}
+
+function renderProgressChart(chart, datasets, { xp = false, skill = null } = {}) {
+  const gained = xp && xpChartMode === 'gained';
+  const isLog = xp && !gained && loadTotalXpLogScalePreference();
+  const number = value => Number(value).toLocaleString('en-US');
+  const series = datasets.map(dataset => ({
+    name: dataset.label, type: 'line', triggerLineEvent: true, showSymbol: dataset.data.length === 1, symbolSize: 7,
+    connectNulls: false, smooth: false,
+    data: dataset.data.map(point => point.value ? point : ({ value: [new Date(point.x).getTime(), point.y] })),
+    itemStyle: { color: dataset.borderColor }, lineStyle: { width: 2.5 },
+    areaStyle: xp ? { opacity: 0.035 } : undefined,
+    emphasis: { focus: 'series', lineStyle: { width: 3 }, areaStyle: { opacity: 0.16 } },
+    blur: { lineStyle: { opacity: 0.12 }, itemStyle: { opacity: 0.12 }, areaStyle: { opacity: 0.01 } }
+  }));
+  const icon = xp ? 'Skills_icon' : skill && SKILL_ICONS.has(skill) ? `${skill}_icon` : chart === questChart ? 'Quest_point_icon' : 'Skills_icon';
+  chart.setOption({
+    animation: !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    animationDuration: 450, animationDurationUpdate: 250,
+    color: CHART_COLORS, textStyle: { fontFamily: 'Arial, sans-serif', color: '#514536' },
+    aria: { enabled: true },
+    grid: { left: 14, right: 24, top: 30, bottom: 30, containLabel: true },
+    legend: { show: false },
+    xAxis: { type: 'time', axisLine: { lineStyle: { color: '#94866d' } }, axisTick: { show: false }, splitNumber: window.innerWidth < 600 ? 3 : 6, axisLabel: { hideOverlap: true } },
+    yAxis: { type: isLog ? 'log' : 'value', min: gained ? 0 : undefined, scale: !gained, name: xp ? (gained ? 'XP gained' : 'Total XP') : (skill || (chart === questChart ? 'Quests completed' : 'Total level')),
+      nameTextStyle: { align: 'left' }, splitLine: { lineStyle: { color: '#c5b89e', type: 'dashed' } },
+      axisLabel: { formatter: v => new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(v) } },
+    tooltip: { trigger: 'axis', confine: true, backgroundColor: '#eee8d9', borderColor: '#94866d', textStyle: { color: '#302a20' },
+      axisPointer: { type: 'line', lineStyle: { color: '#94866d', type: 'dashed' } },
+      formatter: params => formatProgressTooltip(params, icon, xp, chartHoveredSeries.get(chart))
+    },
+    dataZoom: [{ type: 'inside', zoomOnMouseWheel: 'ctrl', moveOnMouseWheel: false, filterMode: 'none' }],
+    graphic: series.some(s => s.data.length) ? [] : [{ type: 'text', left: 'center', top: 'middle', style: { text: 'No history for this selection', fill: '#514536' } }],
+    series
+  }, { replaceMerge: ['series', 'graphic'] });
+  renderPlayerLegend(chart);
+}
+
+function renderPlayerLegend(chart) {
+  const frame = chart.getDom().parentElement;
+  let legend = frame.nextElementSibling;
+  if (!legend?.classList.contains('chart-player-legend')) {
+    legend = document.createElement('div');
+    legend.className = 'chart-player-legend';
+    legend.setAttribute('role', 'group');
+    legend.setAttribute('aria-label', 'Players shown across the dashboard');
+    frame.after(legend);
+  }
+  legend.replaceChildren();
+  document.querySelectorAll('input[type="checkbox"][id^="player-"]').forEach(checkbox => {
+    const player = checkbox.value;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.player = player;
+    button.className = 'chart-player-toggle';
+    button.setAttribute('aria-pressed', String(checkbox.checked));
+    button.title = `${checkbox.checked ? 'Hide' : 'Show'} ${getDisplayName(player)} across all charts and widgets`;
+    button.style.setProperty('--series-color', playerColors[player] || '#94866d');
+    const swatch = document.createElement('span');
+    swatch.className = 'chart-legend-swatch';
+    swatch.setAttribute('aria-hidden', 'true');
+    button.append(swatch, document.createTextNode(getDisplayName(player)));
+    button.addEventListener('click', () => {
+      checkbox.checked = !checkbox.checked;
+      updatePlayerSelection();
+      [...legend.querySelectorAll('button')].find(item => item.dataset.player === player)?.focus({ preventScroll: true });
+    });
+    const highlight = () => {
+      if (!checkbox.checked) return;
+      chart.dispatchAction({ type: 'highlight', seriesName: getDisplayName(player) });
+    };
+    const clear = () => chart.dispatchAction({ type: 'downplay', seriesName: getDisplayName(player) });
+    button.addEventListener('mouseenter', highlight);
+    button.addEventListener('focus', highlight);
+    button.addEventListener('mouseleave', clear);
+    button.addEventListener('blur', clear);
+    legend.append(button);
+  });
 }
 
 function initializeCharts() {
-  const ctx = document.getElementById('questChart').getContext('2d');
-  questChart = new Chart(ctx, {
-    type: 'line',
-    data: cloneChartData(originalChartData),
-    options: withResponsiveChartOptions({
-      scales: {
-        x: {
-          title: {
-            display: true,
-            text: 'Date'
-          }
-        },
-        y: {
-          title: {
-            display: true,
-            text: 'Quests Completed'
-          }
-        }
-      },
-      plugins: {
-        decimation: {
-          enabled: true,
-          algorithm: 'min-max',
-          threshold: 100
-        }
-      }
-    })
+  for (const id of ['questChart', 'totalLevelChart', 'totalExpChart', 'skillLevelChart']) {
+    const element = document.getElementById(id);
+    const chart = echarts.init(element, null, { renderer: 'svg' });
+    if (id === 'questChart') questChart = chart;
+    if (id === 'totalLevelChart') totalLevelChart = chart;
+    if (id === 'totalExpChart') totalExpChart = chart;
+    if (id === 'skillLevelChart') skillLevelChart = chart;
+    chart.on('mouseover', { componentType: 'series' }, event => highlightTooltipPlayer(chart, event.seriesIndex));
+    chart.on('mouseout', { componentType: 'series' }, () => highlightTooltipPlayer(chart, null));
+    chart.on('highlight', event => {
+      const target = event.batch?.[0] || event;
+      if (Number.isInteger(target.seriesIndex)) highlightTooltipPlayer(chart, target.seriesIndex);
+    });
+    chart.on('downplay', () => highlightTooltipPlayer(chart, null));
+    chart.getZr().on('globalout', () => highlightTooltipPlayer(chart, null));
+    new ResizeObserver(() => { if (element.clientWidth && element.clientHeight) chart.resize(); }).observe(element);
+  }
+  document.getElementById('xp-chart-mode').addEventListener('change', event => {
+    xpChartMode = event.target.value;
+    document.getElementById('btn-totalxp-scale').disabled = xpChartMode === 'gained';
+    updateTotalExpChart(getSelectedPlayers());
   });
-
-  const totalLevelCtx = document.getElementById('totalLevelChart').getContext('2d');
-  totalLevelChart = new Chart(totalLevelCtx, {
-    type: 'line',
-    data: cloneChartData(originalTotalLevelChartData),
-    options: withResponsiveChartOptions({
-      scales: {
-        x: {
-          title: {
-            display: true,
-            text: 'Date'
-          }
-        },
-        y: {
-          title: {
-            display: true,
-            text: 'Total Level'
-          }
-        }
-      },
-      plugins: {
-        decimation: {
-          enabled: true,
-          algorithm: 'min-max',
-          threshold: 100
-        }
-      }
-    })
-  });
-
-  const totalExpCtx = document.getElementById('totalExpChart').getContext('2d');
-  const initialTotalXpLogScale = loadTotalXpLogScalePreference();
-  totalExpChart = new Chart(totalExpCtx, {
-    type: 'line',
-    data: cloneChartData(originalTotalExpChartData),
-    options: withResponsiveChartOptions({
-      scales: {
-        x: {
-          title: {
-            display: true,
-            text: 'Date'
-          }
-        },
-        y: {
-          type: initialTotalXpLogScale ? 'logarithmic' : 'linear',
-          title: {
-            display: true,
-            text: 'Total XP'
-          }
-        }
-      },
-      plugins: {
-        decimation: {
-          enabled: true,
-          algorithm: 'min-max',
-          threshold: 100
-        }
-      }
-    })
-  });
-
-  const skillLevelCtx = document.getElementById('skillLevelChart').getContext('2d');
-  skillLevelChart = new Chart(skillLevelCtx, {
-    type: 'line',
-    data: cloneChartData(originalSkillLevelChartData),
-    options: withResponsiveChartOptions({
-      scales: {
-        x: {
-          title: {
-            display: true,
-            text: 'Date'
-          }
-        },
-        y: {
-          title: {
-            display: true,
-            text: 'Level'
-          },
-          min: 1,
-          max: 99
-        }
-      },
-      plugins: {
-        decimation: {
-          enabled: true,
-          algorithm: 'min-max',
-          threshold: 100
-        }
-      }
-    })
-  });
-
-  // Apply initial time period filter to all charts
+  document.getElementById('btn-totalxp-scale').disabled = true;
   const selectedPlayers = getSelectedPlayers();
   updateChart(selectedPlayers);
   updateTotalLevelChart(selectedPlayers);
@@ -2521,17 +2358,19 @@ function initializeApp() {
   renderTables();
   initializeWindowAccessibility();
 
-  // Initialize charts with loaded data
+  // Restore the period before creating charts so first render matches the control.
+  loadTimePeriodPreference();
   initializeCharts();
 
   // Load all saved states (this will update checkboxes and other UI elements)
-  loadWindowOrder();
+  if (document.body.dataset.layout !== 'wiki') loadWindowOrder();
   loadTimePeriodPreference();
   loadPlayerSelection();
   loadWindowVisibility();
 
   // Initialize interactive features
-  initializeDragAndDrop();
+  initializeArticleNavigation();
+  initializeTableSearch();
   initializeTotalXpScaleButton();
   initializeAchievementsFilter();
 
@@ -2605,10 +2444,88 @@ function renderXpTrends(selectedPlayers) {
       const change = row.change === null ? '—' : `${row.change > 0 ? '+' : ''}${Math.round(row.change)}%`;
       const coverage = c ? `${c.span.toFixed(1)} days${c.complete ? '' : ' · partial'}` : 'Insufficient history';
       const updated = row.latest ? ` · updated ${new Date(row.latest).toLocaleDateString()}` : '';
-      return `<tr><th scope="row">${escapeHtml(playerToDisplay[row.player] || row.player)}</th>
+      return `<tr><th scope="row">${playerNameHtml(row.player)}</th>
         <td>${c ? number(c.gain) : '—'}</td><td>${c ? number(c.rate) : '—'}</td>
         <td>${change}</td><td>${coverage}${updated}</td></tr>`;
     }).join('')}</tbody></table></div>`;
+}
+
+function initializeArticleNavigation() {
+  const nav = document.getElementById('tracker-navigation');
+  if (!nav) return;
+  function reveal(hash) {
+    const id = hash.slice(1);
+    const section = document.getElementById(id);
+    if (!section?.matches('.window[data-window-id]')) return;
+    const checkbox = document.getElementById(`window-${id}`);
+    if (checkbox) checkbox.checked = true;
+    section.classList.remove('hidden', 'minimized');
+    saveMinimizedStates();
+    updateWindowAccessibilityState(section);
+    updateWindowVisibility();
+    nav.querySelectorAll('a').forEach(link => {
+      if (link.hash === hash) link.setAttribute('aria-current', 'location');
+      else link.removeAttribute('aria-current');
+    });
+    requestAnimationFrame(() => {
+      section.scrollIntoView({ block: 'start' });
+      section.querySelector('h2')?.focus({ preventScroll: true });
+    });
+  }
+  document.querySelectorAll('.title-bar-text').forEach(title => title.tabIndex = -1);
+  nav.addEventListener('click', event => {
+    const link = event.target.closest('a');
+    if (link) reveal(link.hash);
+  });
+  window.addEventListener('hashchange', () => reveal(location.hash));
+  if (location.hash) reveal(location.hash);
+}
+
+function initializeTableSearch() {
+  document.querySelectorAll('.window .sunken-panel').forEach(panel => {
+    // Recent activity already has its own filters; XP is a short summary.
+    if (panel.closest('#achievements-table-container, #xp-trends')) return;
+    const table = panel.querySelector('table');
+    if (!table) return;
+    const label = panel.getAttribute('aria-label') || 'table';
+    const toolbar = document.createElement('div');
+    toolbar.className = 'table-search';
+    const searchLabel = document.createElement('label');
+    searchLabel.textContent = 'Find in table ';
+    const input = document.createElement('input');
+    input.type = 'search';
+    input.placeholder = 'Type a name…';
+    input.setAttribute('aria-label', `Search ${label}`);
+    searchLabel.append(input);
+    const status = document.createElement('span');
+    status.setAttribute('aria-live', 'polite');
+    toolbar.append(searchLabel, status);
+    panel.before(toolbar);
+    const rows = [...table.querySelectorAll('tbody tr')].filter(row => !row.classList.contains('sticky-total-row'));
+    let group = null;
+    const headings = [];
+    const searchable = rows.flatMap(row => {
+      if (row.querySelector('td[colspan]')) {
+        group = row;
+        headings.push(row);
+        return [];
+      }
+      return [{ row, group, text: `${group?.textContent || ''} ${row.textContent}`.toLocaleLowerCase() }];
+    });
+    input.addEventListener('input', () => {
+      const query = input.value.trim().toLocaleLowerCase();
+      let count = 0;
+      headings.forEach(row => row.classList.toggle('search-hidden', Boolean(query)));
+      searchable.forEach(({ row, group, text }) => {
+        row.classList.toggle('search-hidden', Boolean(query) && !text.includes(query));
+        if (!row.classList.contains('search-hidden') && row.style.display !== 'none') {
+          count++;
+          group?.classList.remove('search-hidden');
+        }
+      });
+      status.textContent = query ? `${count} matching rows` : '';
+    });
+  });
 }
 
 if (document.readyState === 'loading') {

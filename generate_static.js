@@ -23,7 +23,7 @@ export const SITE_METADATA = Object.freeze({
   canonicalUrl: 'https://osrs-tracker.cn.lt/',
   locale: 'en_GB',
   socialImageUrl: 'https://osrs-tracker.cn.lt/og/osrs-tracker-card-v1.png',
-  socialImageAlt: 'A Windows 98-style OSRS Tracker dashboard comparing group progress across Gielinor.'
+  socialImageAlt: 'A parchment-style OSRS Tracker journal comparing group progress across Gielinor.'
 });
 
 const SITE_STRUCTURED_DATA = JSON.stringify({
@@ -540,15 +540,7 @@ function generateTimeSeriesChartData(playerData, valueExtractor) {
     colorIndex++;
 
     const formattedData = data.map(d => ({
-      x: d.timestamp.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'Europe/Vilnius'
-      }),
+      x: new Date(d.timestamp).getTime(),
       y: valueExtractor(d)
     }));
 
@@ -979,7 +971,7 @@ function generatePlayerSelectionUI(players) {
       <div class="player-option">
         <input type="checkbox" id="${inputId}" value="${escapeHtml(player)}" checked onchange="updatePlayerSelection()">
         <label class="player-label" for="${inputId}">
-          <span class="player-name">${escapeHtml(displayName)}</span>
+          <span class="player-name">${escapeHtml(displayName)} <span class="player-ign">(${escapeHtml(player)})</span></span>
         </label>
       </div>
     `;
@@ -1006,7 +998,7 @@ function generatePlayerSelectionUI(players) {
 
 function generateWindowVisibilityUI() {
   const windows = [
-    { id: 'player-overview', name: 'Player Overview', enabled: true, introducedVersion: 2 },
+    { id: 'xp-pace', name: 'Recent XP Pace', enabled: true, introducedVersion: 4 },
     { id: 'quest-progress', name: 'Quest Progress', enabled: true },
     { id: 'total-level-progress', name: 'Total Level Progress', enabled: true },
     { id: 'total-exp-progress', name: 'Total XP Progress', enabled: true },
@@ -1024,7 +1016,7 @@ function generateWindowVisibilityUI() {
   ];
 
   let visibilityHtml = '<div class="window-visibility">';
-  visibilityHtml += '<h3>Window Visibility</h3>';
+  visibilityHtml += '<p>Show the sections you use. Contents links can reopen hidden sections.</p>';
   visibilityHtml += '<div class="window-options">';
 
   for (const window of windows) {
@@ -1233,7 +1225,7 @@ export async function generateStaticHTML() {
   <title>${escapeHtml(SITE_METADATA.title)}</title>
   <meta name="description" content="${escapeHtml(SITE_METADATA.description)}">
   <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
-  <meta name="theme-color" content="#008080">
+  <meta name="theme-color" content="#605443">
   <meta name="application-name" content="${escapeHtml(SITE_METADATA.name)}">
   <meta name="apple-mobile-web-app-title" content="${escapeHtml(SITE_METADATA.name)}">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1262,102 +1254,77 @@ export async function generateStaticHTML() {
   <meta name="twitter:image" content="${SITE_METADATA.socialImageUrl}">
   <meta name="twitter:image:alt" content="${escapeHtml(SITE_METADATA.socialImageAlt)}">
   <script type="application/ld+json">${SITE_STRUCTURED_DATA}</script>
-  <link rel="stylesheet" href="https://unpkg.com/98.css@0.1.21/dist/98.css">
   <link rel="stylesheet" href="styles.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+  <script src="/vendor/echarts-6.0.0.min.js"></script>
   <!-- 100% privacy-first analytics -->
   <script data-collect-dnt="true" async src="https://scripts.simpleanalyticscdn.com/latest.js"></script>
 </head>
-<body class="loading" data-version="${dataVersion}" data-window-catalog-version="3" style="background-color: #008080;">
+<body class="loading" data-version="${dataVersion}" data-window-catalog-version="4" data-layout="wiki">
   <noscript><img src="https://queue.simpleanalyticscdn.com/noscript.gif?collect-dnt=true" alt="" referrerpolicy="no-referrer-when-downgrade"/></noscript>
   <!-- Loading screen -->
   <div class="loading-screen" id="loadingScreen">
     <div class="loading-content">
       <div class="loading-spinner"></div>
       <div class="loading-text">Loading OSRS Tracker</div>
-      <div class="loading-subtext">Initializing windows and applying saved settings...</div>
+      <div class="loading-subtext">Loading player progress…</div>
     </div>
   </div>
 
-  <div class="generated-at" data-nosnippet>Generated: ${generatedAt}</div>
-  <main class="container">
-    <div class="window main-window configuration-window">
-      <div class="title-bar">
-        <div class="title-bar-text">Configuration</div>
-        <div class="title-bar-controls">
-          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
-        </div>
-      </div>
-      <div class="window-body">
+  <a class="skip-link" href="#tracker-content">Skip to progress</a>
+  <div class="wiki-shell">
+    <aside class="wiki-sidebar">
+      <a class="wiki-brand" href="#tracker-content"><img class="wiki-brand-icon" src="/icons/osrs/Collection_log.png" width="40" height="40" alt=""> OSRS Tracker<small>Group progress journal</small></a>
+      <nav aria-label="Contents" id="tracker-navigation">
+        <strong>Contents</strong>
+        <a href="#xp-pace"><img class="osrs-icon" src="/icons/osrs/Adventure_Paths_icon.png" width="24" height="24" alt="" aria-hidden="true">Recent XP pace</a>
+        <a href="#total-exp-progress"><img class="osrs-icon" src="/icons/osrs/Skills_icon.png" width="24" height="24" alt="" aria-hidden="true">Total experience</a>
+        <a href="#total-level-progress"><img class="osrs-icon" src="/icons/osrs/Skills_icon.png" width="24" height="24" alt="" aria-hidden="true">Total levels</a>
+        <a href="#skill-level-progress"><img class="osrs-icon" src="/icons/osrs/Skills_icon.png" width="24" height="24" alt="" aria-hidden="true">Skill progress</a>
+        <a href="#quest-progress"><img class="osrs-icon" src="/icons/osrs/Quest_point_icon.png" width="24" height="24" alt="" aria-hidden="true">Quest progress</a>
+        <strong>Compare</strong>
+        <a href="#level-comparison"><img class="osrs-icon" src="/icons/osrs/Skills_icon.png" width="24" height="24" alt="" aria-hidden="true">Skills</a>
+        <a href="#quest-comparison"><img class="osrs-icon" src="/icons/osrs/Quest_point_icon.png" width="24" height="24" alt="" aria-hidden="true">Quests</a>
+        <a href="#achievement-diaries-comparison"><img class="osrs-icon" src="/icons/osrs/Achievement_Diaries_icon.png" width="24" height="24" alt="" aria-hidden="true">Achievement diaries</a>
+        <a href="#combat-achievements-comparison"><img class="osrs-icon" src="/icons/osrs/Combat_icon.png" width="24" height="24" alt="" aria-hidden="true">Combat achievements</a>
+        <a href="#collection-log-comparison"><img class="osrs-icon" src="/icons/osrs/Collection_log.png" width="24" height="24" alt="" aria-hidden="true">Collection log</a>
+        <a href="#music-tracks-comparison"><img class="osrs-icon" src="/icons/osrs/Music.png" width="24" height="24" alt="" aria-hidden="true">Music tracks</a>
+        <a href="#activities-comparison"><img class="osrs-icon" src="/icons/osrs/Combat_icon.png" width="24" height="24" alt="" aria-hidden="true">Bosses &amp; activities</a>
+        <strong>Explore</strong>
+        <a href="#recent-achievements--progress"><img class="osrs-icon" src="/icons/osrs/Adventure_Paths_icon.png" width="24" height="24" alt="" aria-hidden="true">Recent activity</a>
+        <a href="#sailing-progress"><img class="osrs-icon" src="/icons/osrs/Sailing_icon.png" width="24" height="24" alt="" aria-hidden="true">Sailing</a>
+        <a href="#sea-charting-explorer"><img class="osrs-icon" src="/icons/osrs/Sailing_icon.png" width="24" height="24" alt="" aria-hidden="true">Sea charting</a>
+      </nav>
+      <a class="wiki-reference" href="https://oldschool.runescape.wiki/" target="_blank" rel="noopener noreferrer">Visit the OSRS Wiki ↗</a>
+    </aside>
+    <div class="wiki-article" id="tracker-content" tabindex="-1">
         <header class="site-intro">
           <img class="site-intro-icon" src="/favicon.svg" width="48" height="48" alt="">
           <div class="site-intro-copy">
             <h1>OSRS Tracker</h1>
-            <p>Compare the crew across skills, XP, quests, achievements, activities and collection logs.</p>
+            <p>The group’s adventures, recorded. Compare skills, experience and everything still to complete.</p>
           </div>
         </header>
-        <p class="site-attribution">Created using intellectual property belonging to Jagex Limited under the terms of Jagex's Fan Content Policy. This content is not endorsed by or affiliated with Jagex. <a href="https://legal.jagex.com/docs/policies/fan-content-policy" target="_blank" rel="noopener noreferrer">Read the policy</a>.</p>
+
+      <div class="generated-at" data-nosnippet>Last refreshed: ${generatedAt} · Europe/Vilnius</div>
+      <main class="container">
+    <div class="window main-window configuration-window">
+      <div class="title-bar">
+        <h2 class="title-bar-text"><img class="osrs-icon" src="/icons/osrs/Skills_icon.png" width="24" height="24" alt="" aria-hidden="true">Players &amp; filters</h2>
+        <div class="title-bar-controls">
+          <button aria-label="Collapse section" onclick="toggleWindow(this)">Hide</button>
+        </div>
+      </div>
+      <div class="window-body">
         ${playerSelectionHtml}
-        ${windowVisibilityHtml}
+        <details class="section-preferences"><summary>Choose visible sections</summary>${windowVisibilityHtml}</details>
       </div>
     </div>
-    <div class="window main-window" data-window-id="player-overview" data-introduced-version="2">
+    <div class="window main-window" id="xp-pace" data-window-id="xp-pace" data-introduced-version="4">
       <div class="title-bar">
-        <div class="title-bar-text">Player Overview</div>
-        <div class="title-bar-controls">
-          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
-          <button aria-label="Close" onclick="closeWindow(this)"></button>
-        </div>
+        <h2 class="title-bar-text"><img class="osrs-icon" src="/icons/osrs/Adventure_Paths_icon.png" width="24" height="24" alt="" aria-hidden="true">Recent XP Pace</h2>
+        <div class="title-bar-controls"><button aria-label="Collapse section" onclick="toggleWindow(this)">Hide</button></div>
       </div>
       <div class="window-body">
-        <div id="player-overview-container"></div>
-      </div>
-    </div>
-    <div class="window main-window" data-window-id="quest-progress">
-      <div class="title-bar">
-        <div class="title-bar-text">Quest Progress</div>
-        <div class="title-bar-controls">
-          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
-          <button aria-label="Close" onclick="closeWindow(this)"></button>
-        </div>
-      </div>
-      <div class="window-body">
-        <div class="chart-frame">
-          <canvas id="questChart"></canvas>
-        </div>
-      </div>
-    </div>
-    <div class="window main-window" data-window-id="total-level-progress">
-      <div class="title-bar">
-        <div class="title-bar-text">Total Level Progress</div>
-        <div class="title-bar-controls">
-          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
-          <button aria-label="Close" onclick="closeWindow(this)"></button>
-        </div>
-      </div>
-      <div class="window-body">
-        <div class="chart-frame">
-          <canvas id="totalLevelChart"></canvas>
-        </div>
-      </div>
-    </div>
-    <div class="window main-window" data-window-id="total-exp-progress">
-      <div class="title-bar">
-        <div class="title-bar-text">Total XP Progress</div>
-        <div class="title-bar-controls">
-          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
-          <button aria-label="Close" onclick="closeWindow(this)"></button>
-        </div>
-      </div>
-      <div class="window-body">
-        <div class="chart-toolbar">
-          <button id="btn-totalxp-scale">Log scale: On</button>
-        </div>
-        <div class="chart-frame">
-          <canvas id="totalExpChart"></canvas>
-        </div>
-        <fieldset class="xp-trend-section">
-          <legend>Recent XP pace</legend>
           <div class="xp-trend-toolbar">
           <label for="xp-trend-period">Period:</label>
           <select id="xp-trend-period" onchange="renderXpTrends(getSelectedPlayers())">
@@ -1368,15 +1335,63 @@ export async function generateStaticHTML() {
           </div>
           <div id="xp-trends" aria-live="polite"></div>
           <p class="xp-trend-note">Daily averages include offline time. Pace change compares with the previous period.</p>
-        </fieldset>
+
       </div>
     </div>
-    <div class="window main-window" data-window-id="skill-level-progress">
+    <div class="window main-window" id="total-exp-progress" data-window-id="total-exp-progress">
       <div class="title-bar">
-        <div class="title-bar-text">Skill Level Progress</div>
+        <h2 class="title-bar-text"><img class="osrs-icon" src="/icons/osrs/Skills_icon.png" width="24" height="24" alt="" aria-hidden="true">Total XP Progress</h2>
         <div class="title-bar-controls">
-          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
-          <button aria-label="Close" onclick="closeWindow(this)"></button>
+          <button aria-label="Collapse section" onclick="toggleWindow(this)">Hide</button>
+
+        </div>
+      </div>
+      <div class="window-body">
+        <div class="chart-toolbar">
+          <label for="xp-chart-mode">View</label><select id="xp-chart-mode"><option value="gained">XP gained</option><option value="total">Total XP</option></select>
+          <button id="btn-totalxp-scale">Log scale: On</button>
+        </div>
+        <p class="chart-help">Gains start at each player’s first snapshot in the selected period. Hover a line or legend to focus a player.</p>
+        <div class="chart-frame">
+          <div id="totalExpChart" class="echart" role="img" aria-label="Interactive progress chart"></div>
+        </div>
+
+      </div>
+    </div>
+    <div class="window main-window" id="quest-progress" data-window-id="quest-progress">
+      <div class="title-bar">
+        <h2 class="title-bar-text"><img class="osrs-icon" src="/icons/osrs/Quest_point_icon.png" width="24" height="24" alt="" aria-hidden="true">Quest Progress</h2>
+        <div class="title-bar-controls">
+          <button aria-label="Collapse section" onclick="toggleWindow(this)">Hide</button>
+
+        </div>
+      </div>
+      <div class="window-body">
+        <div class="chart-frame">
+          <div id="questChart" class="echart" role="img" aria-label="Interactive progress chart"></div>
+        </div>
+      </div>
+    </div>
+    <div class="window main-window" id="total-level-progress" data-window-id="total-level-progress">
+      <div class="title-bar">
+        <h2 class="title-bar-text"><img class="osrs-icon" src="/icons/osrs/Skills_icon.png" width="24" height="24" alt="" aria-hidden="true">Total Level Progress</h2>
+        <div class="title-bar-controls">
+          <button aria-label="Collapse section" onclick="toggleWindow(this)">Hide</button>
+
+        </div>
+      </div>
+      <div class="window-body">
+        <div class="chart-frame">
+          <div id="totalLevelChart" class="echart" role="img" aria-label="Interactive progress chart"></div>
+        </div>
+      </div>
+    </div>
+    <div class="window main-window" id="skill-level-progress" data-window-id="skill-level-progress">
+      <div class="title-bar">
+        <h2 class="title-bar-text"><img class="osrs-icon" src="/icons/osrs/Skills_icon.png" width="24" height="24" alt="" aria-hidden="true">Skill Level Progress</h2>
+        <div class="title-bar-controls">
+          <button aria-label="Collapse section" onclick="toggleWindow(this)">Hide</button>
+
         </div>
       </div>
       <div class="window-body">
@@ -1389,131 +1404,134 @@ export async function generateStaticHTML() {
           </select>
         </div>
         <div class="chart-frame">
-          <canvas id="skillLevelChart"></canvas>
+          <div id="skillLevelChart" class="echart" role="img" aria-label="Interactive progress chart"></div>
         </div>
       </div>
     </div>
-    <div class="window main-window" data-window-id="quest-comparison">
+    <div class="window main-window" id="quest-comparison" data-window-id="quest-comparison">
       <div class="title-bar">
-        <div class="title-bar-text">Quest Comparison</div>
+        <h2 class="title-bar-text"><img class="osrs-icon" src="/icons/osrs/Quest_point_icon.png" width="24" height="24" alt="" aria-hidden="true">Quest Comparison</h2>
         <div class="title-bar-controls">
-          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
-          <button aria-label="Close" onclick="closeWindow(this)"></button>
+          <button aria-label="Collapse section" onclick="toggleWindow(this)">Hide</button>
+
         </div>
       </div>
       <div class="window-body">
         <div id="quest-table-container"></div>
       </div>
     </div>
-    <div class="window main-window" data-window-id="level-comparison">
+    <div class="window main-window" id="level-comparison" data-window-id="level-comparison">
       <div class="title-bar">
-        <div class="title-bar-text">Level Comparison</div>
+        <h2 class="title-bar-text"><img class="osrs-icon" src="/icons/osrs/Skills_icon.png" width="24" height="24" alt="" aria-hidden="true">Level Comparison</h2>
         <div class="title-bar-controls">
-          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
-          <button aria-label="Close" onclick="closeWindow(this)"></button>
+          <button aria-label="Collapse section" onclick="toggleWindow(this)">Hide</button>
+
         </div>
       </div>
       <div class="window-body">
         <div id="level-table-container"></div>
       </div>
     </div>
-    <div class="window main-window" data-window-id="achievement-diaries-comparison">
+    <div class="window main-window" id="achievement-diaries-comparison" data-window-id="achievement-diaries-comparison">
       <div class="title-bar">
-        <div class="title-bar-text">Achievement Diaries Comparison</div>
+        <h2 class="title-bar-text"><img class="osrs-icon" src="/icons/osrs/Achievement_Diaries_icon.png" width="24" height="24" alt="" aria-hidden="true">Achievement Diaries Comparison</h2>
         <div class="title-bar-controls">
-          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
-          <button aria-label="Close" onclick="closeWindow(this)"></button>
+          <button aria-label="Collapse section" onclick="toggleWindow(this)">Hide</button>
+
         </div>
       </div>
       <div class="window-body">
         <div id="diary-table-container"></div>
       </div>
     </div>
-    <div class="window main-window" data-window-id="combat-achievements-comparison">
+    <div class="window main-window" id="combat-achievements-comparison" data-window-id="combat-achievements-comparison">
       <div class="title-bar">
-        <div class="title-bar-text">Combat Achievements Comparison</div>
+        <h2 class="title-bar-text"><img class="osrs-icon" src="/icons/osrs/Combat_icon.png" width="24" height="24" alt="" aria-hidden="true">Combat Achievements Comparison</h2>
         <div class="title-bar-controls">
-          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
-          <button aria-label="Close" onclick="closeWindow(this)"></button>
+          <button aria-label="Collapse section" onclick="toggleWindow(this)">Hide</button>
+
         </div>
       </div>
       <div class="window-body">
         <div id="combat-achievements-table-container"></div>
       </div>
     </div>
-    <div class="window main-window" data-window-id="music-tracks-comparison">
+    <div class="window main-window" id="music-tracks-comparison" data-window-id="music-tracks-comparison">
       <div class="title-bar">
-        <div class="title-bar-text">Music Tracks Comparison</div>
+        <h2 class="title-bar-text"><img class="osrs-icon" src="/icons/osrs/Music.png" width="24" height="24" alt="" aria-hidden="true">Music Tracks Comparison</h2>
         <div class="title-bar-controls">
-          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
-          <button aria-label="Close" onclick="closeWindow(this)"></button>
+          <button aria-label="Collapse section" onclick="toggleWindow(this)">Hide</button>
+
         </div>
       </div>
       <div class="window-body">
         <div id="music-tracks-table-container"></div>
       </div>
     </div>
-    <div class="window main-window" data-window-id="collection-log-comparison">
+    <div class="window main-window" id="collection-log-comparison" data-window-id="collection-log-comparison">
       <div class="title-bar">
-        <div class="title-bar-text">Collection Log Comparison</div>
+        <h2 class="title-bar-text"><img class="osrs-icon" src="/icons/osrs/Collection_log.png" width="24" height="24" alt="" aria-hidden="true">Collection Log Comparison</h2>
         <div class="title-bar-controls">
-          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
-          <button aria-label="Close" onclick="closeWindow(this)"></button>
+          <button aria-label="Collapse section" onclick="toggleWindow(this)">Hide</button>
+
         </div>
       </div>
       <div class="window-body">
         <div id="collection-log-table-container"></div>
       </div>
     </div>
-    <div class="window main-window" data-window-id="activities-comparison">
+    <div class="window main-window" id="activities-comparison" data-window-id="activities-comparison">
       <div class="title-bar">
-        <div class="title-bar-text">Activities Comparison</div>
+        <h2 class="title-bar-text"><img class="osrs-icon" src="/icons/osrs/Combat_icon.png" width="24" height="24" alt="" aria-hidden="true">Activities Comparison</h2>
         <div class="title-bar-controls">
-          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
-          <button aria-label="Close" onclick="closeWindow(this)"></button>
+          <button aria-label="Collapse section" onclick="toggleWindow(this)">Hide</button>
+
         </div>
       </div>
       <div class="window-body">
         <div id="activities-table-container"></div>
       </div>
     </div>
-    <div class="window main-window" data-window-id="recent-achievements--progress">
+    <div class="window main-window" id="recent-achievements--progress" data-window-id="recent-achievements--progress">
       <div class="title-bar">
-        <div class="title-bar-text">Recent Achievements & Progress</div>
+        <h2 class="title-bar-text"><img class="osrs-icon" src="/icons/osrs/Adventure_Paths_icon.png" width="24" height="24" alt="" aria-hidden="true">Recent Achievements & Progress</h2>
         <div class="title-bar-controls">
-          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
-          <button aria-label="Close" onclick="closeWindow(this)"></button>
+          <button aria-label="Collapse section" onclick="toggleWindow(this)">Hide</button>
+
         </div>
       </div>
       <div class="window-body">
         <div id="achievements-table-container"></div>
       </div>
     </div>
-    <div class="window main-window" data-window-id="sailing-progress" data-introduced-version="2">
+    <div class="window main-window" id="sailing-progress" data-window-id="sailing-progress" data-introduced-version="2">
       <div class="title-bar">
-        <div class="title-bar-text">Sailing Progress</div>
+        <h2 class="title-bar-text"><img class="osrs-icon" src="/icons/osrs/Sailing_icon.png" width="24" height="24" alt="" aria-hidden="true">Sailing Progress</h2>
         <div class="title-bar-controls">
-          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
-          <button aria-label="Close" onclick="closeWindow(this)"></button>
+          <button aria-label="Collapse section" onclick="toggleWindow(this)">Hide</button>
+
         </div>
       </div>
       <div class="window-body">
         <div id="sailing-progress-container"></div>
       </div>
     </div>
-    <div class="window main-window" data-window-id="sea-charting-explorer" data-introduced-version="2">
+    <div class="window main-window" id="sea-charting-explorer" data-window-id="sea-charting-explorer" data-introduced-version="2">
       <div class="title-bar">
-        <div class="title-bar-text">Sea Charting Explorer</div>
+        <h2 class="title-bar-text"><img class="osrs-icon" src="/icons/osrs/Sailing_icon.png" width="24" height="24" alt="" aria-hidden="true">Sea Charting Explorer</h2>
         <div class="title-bar-controls">
-          <button aria-label="Minimize" onclick="toggleWindow(this)"></button>
-          <button aria-label="Close" onclick="closeWindow(this)"></button>
+          <button aria-label="Collapse section" onclick="toggleWindow(this)">Hide</button>
+
         </div>
       </div>
       <div class="window-body">
         <div id="sea-charting-explorer-container"></div>
       </div>
     </div>
-  </main>
+      </main>
+      <footer class="site-attribution">Independent fan-made tracker. Visual theme inspired by the <a href="https://oldschool.runescape.wiki/w/RuneScape:Theme">OSRS Wiki</a>. This content is not endorsed by or affiliated with Jagex. Not affiliated with the OSRS Wiki. Jagex content used under the <a href="https://legal.jagex.com/docs/policies/fan-content-policy" target="_blank" rel="noopener noreferrer">Fan Content Policy</a>.</footer>
+    </div>
+  </div>
   <script src="js/init.js"></script>
   <script src="js/app.js"></script>
 </body>

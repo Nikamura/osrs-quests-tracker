@@ -62,7 +62,8 @@
     }
 
     // Apply minimized states immediately
-    const savedStates = storedObject('osrs-minimized-windows') || {};
+    const savedStates = storedObject(document.body.dataset.layout === 'wiki'
+      ? 'osrs-collapsed-sections' : 'osrs-minimized-windows') || {};
     document.querySelectorAll('.window').forEach(function(windowElement) {
       const titleText = windowElement.querySelector('.title-bar-text');
       if (titleText) {

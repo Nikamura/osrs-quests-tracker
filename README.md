@@ -22,7 +22,7 @@ A comprehensive tool to track Old School RuneScape (OSRS) progress for a group o
 - **Daily Aggregation for Charts**: Time-series graphs (Quests, Total Level, Skill Level, Total XP) now keep only the latest sample per player per day (Europe/Vilnius). This reduces visual noise while preserving daily progress. Tables remain unaggregated.
 
 ### Web Interface
-- **Interactive Dashboard**: Windows 98-style UI with draggable, minimizable, and closable windows
+- **Interactive Dashboard**: OSRS Wiki-inspired article layout with contents navigation, collapsible sections, and searchable comparison tables
 - **Sharing and Search Metadata**: Branded Open Graph/X cards, canonical metadata, crawler directives, sitemap, favicon, app icons, and `WebSite` structured data
 - **Home-Screen Support**: Web app manifest and touch icons preserve the tracker identity when saved to a phone
 - **Loading Screen**: Smooth loading experience with spinner animation that prevents content flashing
@@ -270,8 +270,8 @@ Display names and player colors are mapped in `config.js`.
 
 ## Technical Details
 
-- **Frontend**: Vanilla JavaScript with Chart.js for visualizations
-- **Styling**: 98.css for retro Windows 98 aesthetic + custom CSS in `public/styles.css`
+- **Frontend**: Vanilla JavaScript with Apache ECharts 6.0.0 (served locally) for interactive visualizations
+- **Styling**: Original CSS in `public/styles.css`, using the OSRS Wiki theme palette and article-style layout
 - **Data Format**: JSON files with ISO timestamp naming convention
 - **State Management**: localStorage for UI preferences and window states
 - **Responsive Design**: Flexible desktop windows plus mobile-first cards, stacked controls, and collapsible sea-charting accordions
@@ -297,7 +297,7 @@ Display names and player colors are mapped in `config.js`.
  - **Level 99 Milestone Highlight**: Recent Achievements now marks hitting level 99 in any skill with a golden star and "99" badge for extra visibility.
 
 ### Previous Features
-- Interactive dashboard with Windows 98-style UI
+- Interactive dashboard with OSRS Wiki-inspired styling
 - Comprehensive player progress tracking
 - Real-time data filtering and comparison tables
 - Persistent user preferences and window management
