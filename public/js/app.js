@@ -1941,6 +1941,10 @@ function generateAchievementsTable(achievementsData) {
       tableHtml += `<img src="${safeWikiUrl(achievement.activityIcon)}" alt="${escapeHtml(achievement.name)}" width="20" height="20" style="image-rendering: pixelated;" loading="lazy" onerror="this.onerror=null;this.src='/icons/osrs/Collection_log.png'">`;
       tableHtml += `<a href="${safeWikiUrl(achievement.activityLink)}" target="_blank" rel="noopener noreferrer" >${escapeHtml(achievement.name)}</a>`;
       tableHtml += `</td>`;
+    } else if (achievement.type === 'collection') {
+      const hasItemDetails = achievementsData.some(item => item.type === 'collection_item' && item.player === achievement.player && item.timestamp === achievement.timestamp);
+      const detail = hasItemDetails ? 'Item details listed separately below.' : 'Item details unavailable for this update. Open your collection log in RuneLite and click WikiSync to sync item details.';
+      tableHtml += `<td><span class="icon-label">${osrsIcon('Collection_log')}${escapeHtml(achievement.name)}</span><small class="collection-sync-hint">${detail}</small></td>`;
     } else if (achievement.type === 'level' && achievement.isMaxLevel) {
       // Highlight level 99 milestones with a golden badge and star
       tableHtml += `<td class="achievement-description">` +

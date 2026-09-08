@@ -274,3 +274,5 @@ button:disabled { opacity: .6; cursor: default; }
 .xp-ranked-player { display: inline-flex; align-items: center; gap: 8px; }
 .xp-medal, .xp-medal-placeholder { display: inline-block; width: 24px; flex: 0 0 24px; text-align: center; }
 .xp-medal { font-size: 22px; line-height: 1.2; }
+
+.collection-sync-hint { display: block; margin-top: 3px; max-width: 52ch; color: #62594a; font-size: 11px; white-space: normal; }
