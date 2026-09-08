@@ -2387,10 +2387,34 @@ function initializeApp() {
   }, 50);
 }
 
+function initializeAutoRefresh() {
+  const currentVersion = document.body.dataset.version;
+  if (!currentVersion) return;
+  let checking = false;
+  async function checkForUpdate() {
+    if (document.hidden || checking) return;
+    checking = true;
+    try {
+      const response = await fetch('/', { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+      if (!response.ok) return;
+      const html = await response.text();
+      const version = html.match(/data-version="(\d+)"/)?.[1];
+      if (version && Number(version) > Number(currentVersion)) location.reload();
+    } catch {
+      // Keep the current dashboard usable during network or server outages.
+    } finally {
+      checking = false;
+    }
+  }
+  setInterval(checkForUpdate, 60000);
+  document.addEventListener('visibilitychange', checkForUpdate);
+}
+
 async function boot() {
   try {
     await loadAppData();
     initializeApp();
+    initializeAutoRefresh();
   } catch (error) {
     console.error('Failed to start OSRS Tracker:', error);
     const spinner = document.querySelector('.loading-spinner');

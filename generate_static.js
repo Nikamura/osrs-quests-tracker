@@ -1305,7 +1305,7 @@ export async function generateStaticHTML() {
           </div>
         </header>
 
-      <div class="generated-at" data-nosnippet>Last refreshed: ${generatedAt} · Europe/Vilnius</div>
+      <div class="generated-at" data-nosnippet>Last refreshed: ${generatedAt} · Europe/Vilnius · Auto-refresh enabled</div>
       <main class="container">
     <div class="window main-window configuration-window">
       <div class="title-bar">
