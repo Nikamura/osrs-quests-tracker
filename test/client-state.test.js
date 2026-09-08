@@ -18,6 +18,7 @@ function createClient(html) {
   dom.window.eval(`${appWithoutBoot}
     window.__clientTest = {
       xpSeriesData,
+      xpMedalRanks,
       formatProgressTooltip,
       highlightTooltipPlayer,
       initializeArticleNavigation,
@@ -337,5 +338,13 @@ test('chart tooltip ranks values and highlights the hovered series without chang
   dom.window.__clientTest.highlightTooltipPlayer(chart, null);
   assert.equal(el.querySelector('.is-highlighted'), null);
   assert.equal(params[0].seriesName, 'Low');
+  dom.window.close();
+});
+
+test('XP medals rank positive complete history with shared places for ties', () => {
+  const dom = createClient('');
+  const row = (player, rate, complete = true) => ({player, current: {rate, complete}});
+  const ranks = dom.window.__clientTest.xpMedalRanks([row('a', 100), row('b', 100), row('c', 50), row('d', 0), row('e', 1000, false)]);
+  assert.deepEqual(JSON.parse(JSON.stringify(ranks)), {a: 1, b: 1, c: 3});
   dom.window.close();
 });

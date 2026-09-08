@@ -2448,11 +2448,25 @@ function calculateXpTrend(history, days, now = Date.now()) {
       ? (current.rate / previous.rate - 1) * 100 : null };
 }
 
+function xpMedalRanks(rows) {
+  const eligible = rows.filter(row => row.current?.complete && row.current.rate > 0)
+    .sort((a, b) => b.current.rate - a.current.rate);
+  return computeRankings(eligible.map(row => ({player: row.player, rate: row.current.rate})), 'rate');
+}
+
+function xpMedal(rank) {
+  if (!(rank >= 1 && rank <= 3)) return '<span class="xp-medal-placeholder" aria-hidden="true"></span>';
+  const name = ['Gold', 'Silver', 'Bronze'][rank - 1];
+  return `<span class="xp-medal" role="img" aria-label="${name} medal: group rank ${rank} by XP per day" title="${name} · Group #${rank} by XP/day">${['🥇', '🥈', '🥉'][rank - 1]}</span>`;
+}
+
 function renderXpTrends(selectedPlayers) {
   const target = document.getElementById('xp-trends');
   if (!target) return;
-  const days = Number(document.getElementById('xp-trend-period')?.value) || 30;
-  const rows = selectedPlayers.map(player => ({ player, ...calculateXpTrend(xpHistory[player] || [], days) }))
+  const days = Number(document.getElementById('xp-trend-period')?.value) || 7;
+  const allRows = Object.keys(playerToDisplay).map(player => ({ player, ...calculateXpTrend(xpHistory[player] || [], days) }));
+  const medals = xpMedalRanks(allRows);
+  const rows = allRows.filter(row => selectedPlayers.includes(row.player))
     .sort((a, b) => (b.current?.rate ?? -1) - (a.current?.rate ?? -1));
   const number = value => Math.round(value).toLocaleString();
   if (!rows.length || rows.every(row => !row.current)) {
@@ -2462,15 +2476,13 @@ function renderXpTrends(selectedPlayers) {
     return;
   }
   target.innerHTML = `<div class="sunken-panel xp-trend-scroll" tabindex="0" role="region" aria-label="Recent XP pace"><table class="interactive xp-trend-table" aria-label="XP pace over the last ${days} days">
-    <thead><tr><th scope="col">Player</th><th scope="col">XP gained</th><th scope="col">XP / day</th><th scope="col">Pace change</th><th scope="col">History</th></tr></thead>
+    <thead><tr><th scope="col">Player</th><th scope="col">XP gained</th><th scope="col">XP / day</th><th scope="col">Pace change</th></tr></thead>
     <tbody>${rows.map(row => {
       const c = row.current;
       const change = row.change === null ? '—' : `${row.change > 0 ? '+' : ''}${Math.round(row.change)}%`;
-      const coverage = c ? `${c.span.toFixed(1)} days${c.complete ? '' : ' · partial'}` : 'Insufficient history';
-      const updated = row.latest ? ` · updated ${new Date(row.latest).toLocaleDateString()}` : '';
-      return `<tr><th scope="row">${playerNameHtml(row.player)}</th>
+      return `<tr><th scope="row"><span class="xp-ranked-player">${xpMedal(medals[row.player])}${playerNameHtml(row.player)}</span></th>
         <td>${c ? number(c.gain) : '—'}</td><td>${c ? number(c.rate) : '—'}</td>
-        <td>${change}</td><td>${coverage}${updated}</td></tr>`;
+        <td>${change}</td></tr>`;
     }).join('')}</tbody></table></div>`;
 }
 

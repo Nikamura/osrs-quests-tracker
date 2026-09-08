@@ -270,3 +270,7 @@ button:disabled { opacity: .6; cursor: default; }
 .chart-player-toggle { color: var(--series-color); }
 .chart-player-toggle[aria-pressed="false"] { color: var(--series-color); opacity: .6; }
 .chart-tooltip-row strong { color: var(--series-color); }
+
+.xp-ranked-player { display: inline-flex; align-items: center; gap: 8px; }
+.xp-medal, .xp-medal-placeholder { display: inline-block; width: 24px; flex: 0 0 24px; text-align: center; }
+.xp-medal { font-size: 22px; line-height: 1.2; }

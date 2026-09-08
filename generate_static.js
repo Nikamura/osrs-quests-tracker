@@ -1328,13 +1328,13 @@ export async function generateStaticHTML() {
           <div class="xp-trend-toolbar">
           <label for="xp-trend-period">Period:</label>
           <select id="xp-trend-period" onchange="renderXpTrends(getSelectedPlayers())">
-            <option value="7">Last 7 days</option>
-            <option value="30" selected>Last 30 days</option>
+            <option value="7" selected>Last 7 days</option>
+            <option value="30">Last 30 days</option>
             <option value="90">Last 90 days</option>
           </select>
           </div>
           <div id="xp-trends" aria-live="polite"></div>
-          <p class="xp-trend-note">Daily averages include offline time. Pace change compares with the previous period.</p>
+          <p class="xp-trend-note">Daily averages include offline time. Pace change compares with the previous period. Medals rank the whole group by XP/day; positive gains and sufficient history are required.</p>
 
       </div>
     </div>
